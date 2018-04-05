@@ -115,7 +115,7 @@ static void parseClass(const QString& name, const QString& in)
                   Prop p;
                   p.name        = re.cap(1);
                   p.type        = re.cap(2);
-                  p.description = re.cap(3);
+                  p.description = re.cap(3).replace("\r", "");
                   cl.props.append(p);
                   }
             else if (re2.indexIn(s, 0) != -1) {
@@ -221,6 +221,7 @@ static QRegExp reClasses("");
 
 static QString linkClass(const QString& in)
       {
+      return in;
       if (reClasses.pattern().isEmpty()) {
             QStringList classNames;
             foreach(const Class& cl, classes)
