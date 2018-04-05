@@ -8,10 +8,21 @@
 <br/><h4>Methods</h4>
 <div class="methods">
 <div class="method">
-void <b>rewind</b>(int type)
+Ms::ElementW* <b>element</b>()
 </div>
 <div class="method-description">
 get tempo at current tick<br/>
+</div>
+<div class="method">
+Ms::ElementW* <b>segment</b>()
+</div>
+<div class="method">
+Ms::ElementW* <b>measure</b>()
+</div>
+<div class="method">
+void <b>rewind</b>(int type)
+</div>
+<div class="method-description">
 rewind cursor<br/>
 type=0 rewind to start of score<br/>
 type=1 rewind to start of selection<br/>
@@ -42,19 +53,17 @@ Quarter, if n == 0<br/>
 <h4>Properties</h4>
 <div class="properties">
 <table>
-<tr class="prop-odd"><td class="prop-name">track</td><td class="prop-type">int</td><td class="prop-desc">           current track</td></tr>
-<tr class="prop-even"><td class="prop-name">staffIdx</td><td class="prop-type">int</td><td class="prop-desc">           current staff (track / 4)</td></tr>
-<tr class="prop-odd"><td class="prop-name">voice</td><td class="prop-type">int</td><td class="prop-desc">           current voice (track % 4)</td></tr>
-<tr class="prop-even"><td class="prop-name">filter</td><td class="prop-type">enum</td><td class="prop-desc">          segment type filter</td></tr>
-<tr class="prop-odd"><td class="prop-name">element</td><td class="prop-type">Ms::Element*</td><td class="prop-desc">  current element at track, read only</td></tr>
-<tr class="prop-even"><td class="prop-name">segment</td><td class="prop-type">Ms::Segment*</td><td class="prop-desc">  current segment, read only</td></tr>
-<tr class="prop-odd"><td class="prop-name">measure</td><td class="prop-type">Ms::Measure*</td><td class="prop-desc">  current measure, read only</td></tr>
-<tr class="prop-even"><td class="prop-name">tick</td><td class="prop-type">int</td><td class="prop-desc">           midi tick position, read only</td></tr>
-<tr class="prop-odd"><td class="prop-name">time</td><td class="prop-type">double</td><td class="prop-desc">        time at tick position, read only</td></tr>
-<tr class="prop-even"><td class="prop-name">tempo</td><td class="prop-type">float</td><td class="prop-desc">         tempo at tick position, read only</td></tr>
-<tr class="prop-odd"><td class="prop-name">keySignature</td><td class="prop-type">int</td><td class="prop-desc">        key signature of current staff at tick pos. (read only)</td></tr>
-<tr class="prop-even"><td class="prop-name">timeSignature</td><td class="prop-type">Ms::TimeSig*</td><td class="prop-desc"> time signature of current staff at tick pos. (read only)</td></tr>
-<tr class="prop-odd"><td class="prop-name">score</td><td class="prop-type">Ms::Score*</td><td class="prop-desc">    associated score</td></tr>
+<tr class="prop-odd"><td class="prop-name">track</td><td class="prop-type">int</td><td class="prop-desc">current track</td></tr>
+<tr class="prop-even"><td class="prop-name">staffIdx</td><td class="prop-type">int</td><td class="prop-desc">current staff (track / 4)</td></tr>
+<tr class="prop-odd"><td class="prop-name">voice</td><td class="prop-type">int</td><td class="prop-desc">current voice (track % 4)</td></tr>
+<tr class="prop-even"><td class="prop-name">filter</td><td class="prop-type">enum</td><td class="prop-desc">segment type filter</td></tr>
+<tr class="prop-odd"><td class="prop-name">element</td><td class="prop-type">Ms::ElementW*</td><td class="prop-desc">current element at track, read only</td></tr>
+<tr class="prop-even"><td class="prop-name">segment</td><td class="prop-type">Ms::Segment*</td><td class="prop-desc">current segment, read only</td></tr>
+<tr class="prop-odd"><td class="prop-name">measure</td><td class="prop-type">Ms::Measure*</td><td class="prop-desc">current measure, read only</td></tr>
+<tr class="prop-even"><td class="prop-name">tick</td><td class="prop-type">int</td><td class="prop-desc">midi tick position, read only</td></tr>
+<tr class="prop-odd"><td class="prop-name">time</td><td class="prop-type">double</td><td class="prop-desc">time at tick position, read only</td></tr>
+<tr class="prop-even"><td class="prop-name">keySignature</td><td class="prop-type">int</td><td class="prop-desc">key signature of current staff at tick pos. (read only)</td></tr>
+<tr class="prop-odd"><td class="prop-name">score</td><td class="prop-type">Ms::Score*</td><td class="prop-desc">associated score</td></tr>
 </table></div>
 </body>
 </html>
