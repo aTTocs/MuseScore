@@ -241,6 +241,38 @@ static QString linkClass(const QString& in)
       return in;
       }
 
+static bool isExported(const QString& name)
+      {
+      foreach(const Class& cl, classes)
+            if (cl.name == name)
+                  return true;
+      return false;
+      }
+
+//---------------------------------------------------------
+//   writeClassTree
+//
+//   Recursive.
+//---------------------------------------------------------
+
+static void writeClassTree(QString& out, const QString& parentName)
+      {
+      bool opened = false;
+
+      foreach(const Class& cl, classes) {
+            if (cl.parent == parentName || (parentName == "" && !isExported(cl.parent))) {
+                  if (!opened) {
+                        out += "<ul>\n";
+                        opened = true;
+                        }
+                  out += QString("<li><a href=\"%1\">%2</a></li>\n").arg(cl.name.toLower() + ".html").arg(cl.name);
+                  writeClassTree(out, cl.name);
+                  }
+            }
+      if (opened)
+            out += "</ul>\n";
+      }
+
 //---------------------------------------------------------
 //   writeOutput
 //---------------------------------------------------------
@@ -254,12 +286,10 @@ static void writeOutput()
 
             if (!cl.parent.isEmpty()) {
                   // show parent only if its part of the exported classes
-                  foreach(const Class& lcl, classes) {
-                        if (lcl.name == cl.parent) {
-                              QString path = cl.parent.toLower();
-                              out += QString("<div class=\"class-inherit\">inherits <a href=\"%1.html\">%2</a></div>\n").arg(path).arg(cl.parent);
-                              break;
-                              }
+                  if (isExported(cl.parent)) {
+                        QString path = cl.parent.toLower();
+                        out += QString("<div class=\"class-inherit\">inherits <a href=\"%1.html\">%2</a></div>\n").arg(path).arg(cl.parent);
+                        break;
                         }
                   }
             if (!cl.description.isEmpty()) {
@@ -339,13 +369,9 @@ static void writeOutput()
              "<br>Use 'New' to create a skeleton plugin."
              "<br>Plugins are coded in <a href='http://doc.qt.io/qt-5/qmlapplications.html#what-is-qml'>QML</a>"
              "</p>\n";
-      out += "<ul>\n";
+
       qSort(classes);
-      foreach(const Class& s, classes) {
-            out += QString("<li><a href=\"%1\">%2</a></li>\n")
-                    .arg(s.name.toLower() + ".html").arg(s.name);
-            }
-      out += "</ul>\n";
+      writeClassTree(out, "");
       addFooter(out);
 
       QString ofile = dstPath + "/plugins/plugins.html";
