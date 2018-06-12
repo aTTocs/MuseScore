@@ -385,6 +385,7 @@ class ScoreView : public QWidget, public MuseScoreView {
       ScoreState mscoreState() const;
       void setCursorVisible(bool v);
       void showOmr(bool flag);
+      void showBagpipeAssistant(bool flag);
       void midiNoteReceived(int pitch, bool chord, int velocity);
 
       virtual void moveCursor() override;

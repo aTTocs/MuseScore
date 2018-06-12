@@ -48,7 +48,7 @@ QT5_WRAP_UI (ui_headers
       note_groups.ui resourceManager.ui stafftypetemplates.ui
       startcenter.ui scorePreview.ui scoreBrowser.ui
       logindialog.ui uploadscoredialog.ui breaksdialog.ui
-      toolbarEditor.ui bagpipepanel.ui
+      toolbarEditor.ui bagpipeassistant.ui
 
       importmidi/importmidi_panel.ui
 
@@ -348,7 +348,9 @@ add_executable ( ${ExecutableName}
       toolbarEditor.cpp toolbarEditor.h
       abstractdialog.cpp abstractdialog.h
       toolbuttonmenu.cpp
-      bagpipepanel.cpp
+      bagpipeassistant.cpp bagpipeassistant.h
+      bagpipedurations.cpp bagpipedurations.h
+      bagpipeembellishment.cpp bagpipeembellishment.h
 
       ${COCOABRIDGE}
       ${OMR_FILES}

@@ -85,6 +85,7 @@ class ChordList;
 class Capella;
 class Inspector;
 class OmrPanel;
+class BagpipeAssistant;
 class NScrollArea;
 class TDockWidget;
 class Sym;
@@ -329,6 +330,7 @@ class MuseScore : public QMainWindow, public MuseScoreCore {
       PaletteBox* paletteBox         { 0 };
       Inspector* _inspector          { 0 };
       OmrPanel* omrPanel             { 0 };
+      BagpipeAssistant* bagpipeAssistant { 0 };
 
       QPushButton* showMidiImportButton {0};
 
@@ -436,6 +438,7 @@ class MuseScore : public QMainWindow, public MuseScoreCore {
       void showPalette(bool);
       void showInspector(bool);
       void showOmrPanel(bool);
+      void showBagpipeAssistant(bool);
       void showNavigator(bool);
       void showTimeline(bool);
       void showSelectionWindow(bool);

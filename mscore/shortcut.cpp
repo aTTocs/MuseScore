@@ -2812,6 +2812,13 @@ Shortcut Shortcut::_sc[] = {
 #endif
       {
          MsWidget::MAIN_WINDOW,
+         STATE_NORMAL | STATE_NOTE_ENTRY | STATE_PLAY | STATE_EDIT,
+         "bagpipeassistant",
+         QT_TRANSLATE_NOOP("action","Bagpipe Assistant"),
+         QT_TRANSLATE_NOOP("action","Show Bagpipe Assistant")
+         },
+      {
+         MsWidget::MAIN_WINDOW,
          STATE_NORMAL | STATE_NOTE_ENTRY | STATE_PLAY,
          "loop",
          QT_TRANSLATE_NOOP("action","Loop Playback"),

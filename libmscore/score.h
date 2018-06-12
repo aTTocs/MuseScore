@@ -1171,6 +1171,8 @@ class MasterScore : public Score {
       Omr* _omr               { 0 };
       bool _showOmr           { false };
 
+      bool _showBagpipeAssistant{ true };
+
       int _midiPortCount      { 0 };                  // A count of JACK/ALSA midi out ports
       QQueue<MidiInputEvent> _midiInputQueue;         // MIDI events that have yet to be processed
       std::list<MidiInputEvent> _activeMidiPitches;   // MIDI keys currently being held down
@@ -1247,6 +1249,9 @@ class MasterScore : public Score {
       void removeOmr();
       bool showOmr() const                     { return _showOmr; }
       void setShowOmr(bool v)                  { _showOmr = v;    }
+
+      bool showBagpipeAssistant() const        { return _showBagpipeAssistant; }
+      void setShowBagpipeAssistant(bool v)     { _showBagpipeAssistant = v;    }
 
       int midiPortCount() const                { return _midiPortCount;            }
       void setMidiPortCount(int val)           { _midiPortCount = val;             }

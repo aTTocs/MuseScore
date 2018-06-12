@@ -211,6 +211,7 @@ install(FILES
       ../share/styles/chords_jazz.xml
       ../share/styles/chords.xml
       ../share/styles/stdchords.xml
+      ../share/styles/bagpipeDefinitions.xml
       ../share/styles/jazzchords.xml
       ../share/styles/cchords_muse.xml
       ../share/styles/cchords_nrb.xml

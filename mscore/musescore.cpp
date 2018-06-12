@@ -72,6 +72,7 @@
 #ifdef OMR
 #include "omrpanel.h"
 #endif
+#include "bagpipeassistant.h"
 #include "shortcut.h"
 #ifdef SCRIPT_INTERFACE
 #include "pluginCreator.h"
@@ -993,6 +994,10 @@ MuseScore::MuseScore()
       a->setCheckable(true);
       menuView->addAction(a);
 #endif
+      a = getAction("bagpipeassistant");
+      a->setCheckable(true);
+      menuView->addAction(a);
+
       playId = getAction("toggle-playpanel");
       playId->setCheckable(true);
       menuView->addAction(playId);
@@ -1648,6 +1653,8 @@ void MuseScore::selectionChanged(SelState selectionState)
             timeline()->changeSelection(selectionState);
       if (_pianoTools && _pianoTools->isVisible())
             _pianoTools->changeSelection(cs->selection());
+      if (bagpipeAssistant)
+            bagpipeAssistant->update(cs);
       updateInspector();
       }
 
@@ -1863,6 +1870,12 @@ void MuseScore::setCurrentScoreView(ScoreView* view)
                   omrPanel->setOmrView(0);
             }
 #endif
+      if (bagpipeAssistant) {
+//            if (cv && cv->omrView())
+//                  omrPanel->setOmrView(cv->omrView());
+//            else
+//                  omrPanel->setOmrView(0);
+            }
       if (!cs) {
             setWindowTitle(MUSESCORE_NAME_VERSION);
             if (_navigator && _navigator->widget()) {
@@ -4966,6 +4979,8 @@ void MuseScore::cmd(QAction* a, const QString& cmd)
       else if (cmd == "omr")
             showOmrPanel(a->isChecked());
 #endif
+      else if (cmd == "bagpipeassistant")
+            showBagpipeAssistant(a->isChecked());
       else if (cmd == "toggle-playpanel")
             showPlayPanel(a->isChecked());
       else if (cmd == "toggle-navigator")

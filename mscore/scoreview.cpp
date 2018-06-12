@@ -2113,6 +2113,10 @@ void ScoreView::cmd(const char* s)
                   showOmr(!_score->masterScore()->showOmr());
             }
 #endif
+      else if (cmd == "bagpipeassistant") {
+            //if (_score->masterScore()->omr())
+                  showBagpipeAssistant(!_score->masterScore()->showBagpipeAssistant());
+            }
       else if (cmd == "split-measure") {
             Element* e = _score->selection().element();
             if (!(e && (e->isNote() || e->isRest())))
@@ -2240,6 +2244,22 @@ void ScoreView::cmd(const char* s)
 void ScoreView::showOmr(bool flag)
       {
       _score->masterScore()->setShowOmr(flag);
+      ScoreTab* t = mscore->getTab1();
+      if (t->view() != this)
+            t = mscore->getTab2();
+      if (t->view() == this)
+            t->setCurrent(t->currentIndex());
+      else
+            qDebug("view not found");
+      }
+
+//---------------------------------------------------------
+//   showBagpipeAssistant
+//---------------------------------------------------------
+
+void ScoreView::showBagpipeAssistant(bool flag)
+      {
+      _score->masterScore()->setShowBagpipeAssistant(flag);
       ScoreTab* t = mscore->getTab1();
       if (t->view() != this)
             t = mscore->getTab2();

@@ -24,6 +24,7 @@ install(FILES
       chords_jazz.xml
       chords.xml
       stdchords.xml
+      bagpipeDefinitions.xml
       jazzchords.xml
       cchords_muse.xml
       cchords_nrb.xml
