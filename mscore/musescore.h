@@ -330,7 +330,7 @@ class MuseScore : public QMainWindow, public MuseScoreCore {
       PaletteBox* paletteBox         { 0 };
       Inspector* _inspector          { 0 };
       OmrPanel* omrPanel             { 0 };
-      BagpipeAssistant* bagpipeAssistant { 0 };
+      BagpipeAssistant* bagpipeAssistant { nullptr };
 
       QPushButton* showMidiImportButton {0};
 
@@ -438,7 +438,6 @@ class MuseScore : public QMainWindow, public MuseScoreCore {
       void showPalette(bool);
       void showInspector(bool);
       void showOmrPanel(bool);
-      void showBagpipeAssistant(bool);
       void showNavigator(bool);
       void showTimeline(bool);
       void showSelectionWindow(bool);
@@ -542,6 +541,7 @@ class MuseScore : public QMainWindow, public MuseScoreCore {
       ~MuseScore();
       bool checkDirty(MasterScore*);
       PlayPanel* getPlayPanel() const { return playPanel; }
+      BagpipeAssistant* getBagpipeAssistant() const { return bagpipeAssistant; }
       Mixer* getMixer() const { return mixer; }
       QMenu* genCreateMenu(QWidget* parent = 0);
       virtual int appendScore(MasterScore*);
@@ -741,6 +741,7 @@ class MuseScore : public QMainWindow, public MuseScoreCore {
 
       Q_INVOKABLE void showStartcenter(bool);
       void showPlayPanel(bool);
+      void showBagpipeAssistant(bool);
 
       QFileInfoList recentScores() const;
       void saveDialogState(const char* name, QFileDialog* d);

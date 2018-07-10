@@ -2113,10 +2113,8 @@ void ScoreView::cmd(const char* s)
                   showOmr(!_score->masterScore()->showOmr());
             }
 #endif
-      else if (cmd == "bagpipeassistant") {
-            //if (_score->masterScore()->omr())
-                  showBagpipeAssistant(!_score->masterScore()->showBagpipeAssistant());
-            }
+      else if (cmd == "bagpipeassistant")
+            showBagpipeAssistant(!_score->masterScore()->showBagpipeAssistant());
       else if (cmd == "split-measure") {
             Element* e = _score->selection().element();
             if (!(e && (e->isNote() || e->isRest())))

@@ -27,6 +27,7 @@
 #include "libmscore/score.h"
 #include "libmscore/repeatlist.h"
 #include "mscore/playpanel.h"
+#include "bagpipeassistant.h"
 #include <jack/midiport.h>
 
 // Prevent killing sequencer with wrong data
@@ -672,6 +673,8 @@ void JackAudio::checkTransportSeek(int cur_frame, int nframes, bool inCountIn)
       if (preferences.getBool(PREF_IO_JACK_USEJACKTRANSPORT)) {
             if (mscore->getPlayPanel() && mscore->getPlayPanel()->isTempoSliderPressed())
                   return;
+            if (mscore->getBagpipeAssistant() && mscore->getBagpipeAssistant()->isTempoSliderPressed())
+                  return;
             int cur_utick = seq->score()->utime2utick((qreal)cur_frame / MScore::sampleRate);
             int utick     = seq->score()->utime2utick((qreal)pos.frame / MScore::sampleRate);
 
@@ -699,6 +702,10 @@ void JackAudio::checkTransportSeek(int cur_frame, int nframes, bool inCountIn)
                   if (mscore->getPlayPanel()) {
                         mscore->getPlayPanel()->setRelTempo(newRelTempo);
                         mscore->getPlayPanel()->setTempo(seq->curTempo() * newRelTempo);
+                        }
+                  if (mscore->getBagpipeAssistant()) {
+                        mscore->getBagpipeAssistant()->setRelTempo(newRelTempo);
+                        mscore->getBagpipeAssistant()->setTempo(seq->curTempo() * newRelTempo);
                         }
                   }
             }

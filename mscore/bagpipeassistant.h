@@ -10,45 +10,94 @@
 //  as published by the Free Software Foundation and appearing in
 //  the file LICENSE.GPL
 //=============================================================================
+#pragma once
+#ifndef BAGPIPE_BAGPIPEASSISTANT_H
+#define BAGPIPE_BAGPIPEASSISTANT_H
 
-#ifndef __BAGPIPEASSISTANT_H__
-#define __BAGPIPEASSISTANT_H__
-
+#include <memory>
+#include <QDockWidget>
+#include <QSignalMapper>
 #include "qobjectdefs.h"
+
+#include "libmscore/score.h"
+#include "libmscore/select.h"
+#include "mscore/enableplayforwidget.h"
+
 #include "ui_bagpipeassistant.h"
+#include "bagpipe/ui/durationsmodifier.h"
+#include "bagpipe/ui/scoremaker.h"
 
 namespace Ms {
+using namespace Bagpipe;
 
-class BagpipeDurations;
-class Score;
-class Element;
-//class QSignalMapper;
-
-class BagpipeAssistant : public QDockWidget
+//---------------------------------------------------------
+//   BagpipeAssistant
+//---------------------------------------------------------
+class BagpipeAssistant : public QWidget, private Ui::BagpipeAssistantBase //QDockWidget
       {
+#pragma clang diagnostic ignored "-Wunknown-warning-option"
       Q_OBJECT
 
-   public:
-      explicit BagpipeAssistant(QWidget* parent = 0);
-      ~BagpipeAssistant();
+public:
+      explicit BagpipeAssistant(QWidget* parent = nullptr);
+      virtual ~BagpipeAssistant() override;
 
-      void update(Score* score);
+      void setScore(Score* score);
+
+      void setTempo(double);
+      void setRelTempo(qreal);
+
+      void setEndpos(int);
+      bool isTempoSliderPressed() {return tempoSliderIsPressed;}
+      void changeSelection(Selection selection);
 
    signals:
-      void bagpipeAssistantVisible(bool);
+      void relTempoChanged(double);
+      void metronomeGainChanged(float);
+      void posChange(int);
+      void gainChange(float);
+      void closed(bool);
 
-   private:
-      Ui::BagpipeAssistant  _ui;
-      //QSignalMapper*    _signalMapper = 0;
-      BagpipeDurations* _durations = 0;
-      Score*            _score = 0;
-      Element*          _element = 0;
+   public slots:
+      void setGain(float);
+      void setPos(int);
+      void heartBeat(int rpos, int apos, int samples);
 
-   private slots:
-      void on_beforeNoteStartButton_clicked();
-      void on_variesNoteStartButton_clicked();
-      void on_afterNoteStartButton_clicked();
-   };
+protected:
+      virtual void changeEvent(QEvent *event) override;
+      void retranslate()  { retranslateUi(this); }
 
-}// namespace Ms
-#endif // __BAGPIPEASSISTANT_H__
+private:
+      shared_ptr<QSignalMapper> _signalMapper = nullptr;
+
+      int cachedTickPosition;
+      int cachedTimePosition;
+      bool tempoSliderIsPressed;
+      EnablePlayForWidget* enablePlay = nullptr;
+
+      Definitions_SPtr _definitions = nullptr;
+      DurationsModifier_UPtr _durationsModifier = nullptr;
+      ScoreMaker_UPtr _scoreMaker = nullptr;
+
+      Score* _score = nullptr;
+
+      virtual void closeEvent(QCloseEvent*) override;
+      virtual void hideEvent (QHideEvent* event) override;
+      virtual void showEvent(QShowEvent *) override;
+      virtual bool eventFilter(QObject *, QEvent *) override;
+      virtual void keyPressEvent(QKeyEvent*) override;
+      void updateTimeLabel(int sec);
+      void updatePosLabel(int utick);
+
+private slots:
+      void volumeChanged(double, int);
+      void metronomeGainChanged(double val, int);
+      void relTempoChanged(double, int);
+      void relTempoChanged();
+      void tempoSliderReleased(int);
+      void tempoSliderPressed(int);
+
+      void on_tabWidget_currentChanged(int index);
+      };
+} // namespace Ms
+#endif // BAGPIPE_BAGPIPEASSISTANT_H

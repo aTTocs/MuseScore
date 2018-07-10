@@ -36,6 +36,7 @@
 #include "seq.h"
 #include "synthesizer/msynthesizer.h"
 #include "shortcut.h"
+#include "bagpipeassistant.h"
 
 #ifdef OSC
 #include "ofqf/qoscserver.h"
@@ -192,6 +193,8 @@ void MuseScore::oscTempo(int val)
       qreal t = val * .01;
       if (playPanel)
             playPanel->setRelTempo(t);
+      if (bagpipeAssistant)
+            bagpipeAssistant->setRelTempo(t);
       if (seq)
             seq->setRelTempo(double(t));
       }

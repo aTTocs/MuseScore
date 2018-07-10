@@ -43,3 +43,14 @@ MuseScore_General.sf3
 MuseScore_General-License.md
 MuseScore_General-changelog.txt
 VERSION
+/CMakeSettings.json
+/.vs
+/dependencies
+/share/styles/bagpipeDefinitions - Copy.xml
+/share/styles/bagpipeDefinitions copy.xml
+/share/styles/bagpipeDefinitions test.xml
+/.gitattributes
+/bagpipe/ui/treeitem - Copy.cpp
+/bagpipe/ui/treeitem - Copy.h
+/bagpipe/ui/treemodel - Copy.cpp
+/bagpipe/ui/treemodel - Copy.h

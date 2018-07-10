@@ -2815,7 +2815,10 @@ Shortcut Shortcut::_sc[] = {
          STATE_NORMAL | STATE_NOTE_ENTRY | STATE_PLAY | STATE_EDIT,
          "bagpipeassistant",
          QT_TRANSLATE_NOOP("action","Bagpipe Assistant"),
-         QT_TRANSLATE_NOOP("action","Show Bagpipe Assistant")
+         QT_TRANSLATE_NOOP("action","Show Bagpipe Assistant"),
+         0,
+         Icons::grace32_ICON,
+         Qt::ApplicationShortcut
          },
       {
          MsWidget::MAIN_WINDOW,

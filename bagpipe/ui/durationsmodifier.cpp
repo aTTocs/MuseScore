@@ -11,7 +11,9 @@
 //  the file LICENSE.GPL
 //=============================================================================
 
-#include "musescore.h"
+#include "durationsmodifier.h"
+
+//#include "mscore/musescore.h"
 #include "libmscore/chord.h"
 #include "libmscore/chordrest.h"
 #include "libmscore/measure.h"
@@ -19,31 +21,31 @@
 #include "libmscore/tempo.h"
 #include "libmscore/tie.h"
 #include "libmscore/undo.h"
-#include "bagpipedurations.h"
+
+#include "../gracenotes/embellishment.h"
+#include "../gracenotes/embellishmentdefinitions.h"
+#include "../gracenotes/match.h"
 
 #define Constrain(x, min, max) (x = x < min ? min : (x > max ? max : x))
 
 namespace Ms {
+using namespace Bagpipe;
 
-int BagpipeDurations::_millichordsPerChord = 1000; // See NoteEvent - "1/1000 of nominal note len"
-int BagpipeDurations::_millisecondsPerSecond = 1000;
-
-#pragma GCC diagnostic push // TEMP
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-#pragma GCC diagnostic ignored "-Wunused-variable"
-#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
+int DurationsModifier::_millichordsPerChord = 1000; // See NoteEvent - "1/1000 of nominal note len"
+double DurationsModifier::_millisecondsPerSecond = 1000.0;
 
 //---------------------------------------------------------
-//   BagpipeDurations
+//   DurationsModifier
 //---------------------------------------------------------
-BagpipeDurations::BagpipeDurations()
-      {
-      }
+DurationsModifier::DurationsModifier(const Definitions& definitions)
+      : _definitions(definitions)
+      , _embellishments(_definitions.embellishments())
+      {}
 
 //---------------------------------------------------------
 //   setScore
 //---------------------------------------------------------
-void BagpipeDurations::setScore(Score* score)
+void DurationsModifier::setScore(Score* score)
       {
       _score = score;
 
@@ -53,20 +55,20 @@ void BagpipeDurations::setScore(Score* score)
             }
 
       // Set Tempo
-      TempoMap::const_iterator iter = _score->tempomap()->begin();
+      Ms::TempoMap::const_iterator iter = _score->tempomap()->begin();
       for (;iter != _score->tempomap()->begin(); iter++) {
             int tick = iter->first;
-            TEvent event = iter->second;
+            Ms::TEvent event = iter->second;
 
             _goalTempo_Bps = event.tempo;
-            _goalTempo_Bpm = 60 * _goalTempo_Bps;
+            _goalTempo_Bpm = static_cast<int>(60.0 * _goalTempo_Bps);
             }
       }
 
 //---------------------------------------------------------
 //   setBaseDuration
 //---------------------------------------------------------
-void BagpipeDurations::setBaseDuration(int duration)
+void DurationsModifier::setBaseDuration(int duration)
       {
       Constrain(duration, 1, 500 );
 
@@ -76,7 +78,7 @@ void BagpipeDurations::setBaseDuration(int duration)
 //---------------------------------------------------------
 //   setGoalTempoBpm
 //---------------------------------------------------------
-void BagpipeDurations::setGoalTempoBpm(int tempoBpm)
+void DurationsModifier::setGoalTempoBpm(int tempoBpm)
       {
       Constrain(tempoBpm, 10, 200);
 
@@ -87,7 +89,7 @@ void BagpipeDurations::setGoalTempoBpm(int tempoBpm)
 //---------------------------------------------------------
 //   setPracticeTempoPercent
 //---------------------------------------------------------
-void BagpipeDurations::setPracticeTempoPercent(int percent)
+void DurationsModifier::setPracticeTempoPercent(int percent)
       {
       Constrain(percent, 10, 200);
 
@@ -97,34 +99,34 @@ void BagpipeDurations::setPracticeTempoPercent(int percent)
 //---------------------------------------------------------
 //   selectedElement
 //---------------------------------------------------------
-Element* BagpipeDurations::selectedElement() const
+Element* DurationsModifier::selectedElement() const
       {
-      return selectedElements() && !selectedElements()->empty() ? (*selectedElements())[0] : 0;
+      return selectedElements() && !selectedElements()->empty() ? (*selectedElements())[0] : nullptr;
       }
 
 //---------------------------------------------------------
 //   selectedElements
 //---------------------------------------------------------
-const QList<Element*>* BagpipeDurations::selectedElements() const
+const QList<Element*>* DurationsModifier::selectedElements() const
       {
-      return _score ? &_score->selection().elements() : 0;
+      return _score ? &_score->selection().elements() : nullptr;
       }
 
 //---------------------------------------------------------
 //   millisecondsPerMillichord
 //---------------------------------------------------------
-float BagpipeDurations::millisecondsPerMillichord(Chord* chord) const
+double DurationsModifier::millisecondsPerMillichord(Ms::Chord* chord) const
       {
       if (!chord)
             return 0.0;
 
-      float quarterNotesPerBeat = 1.5; // 6/8
+      double quarterNotesPerBeat = 1.5; // 6/8
 
-      float practice_BeatsPerSecond = _practiceTempoFactor * _goalTempo_Bps;
+      double practice_BeatsPerSecond = _practiceTempoFactor * _goalTempo_Bps;
 
-      float millisecondsPerBeat = _millisecondsPerSecond / practice_BeatsPerSecond;
+      double millisecondsPerBeat = _millisecondsPerSecond / practice_BeatsPerSecond;
 
-      float ticksPerChord = 480.0;
+      double ticksPerChord = 480.0;
       switch (chord->durationType().type()) {
             case TDuration::DurationType::V_BREVE:   ticksPerChord = 3840.0; break;
             case TDuration::DurationType::V_WHOLE:   ticksPerChord = 1920.0; break;
@@ -156,10 +158,10 @@ float BagpipeDurations::millisecondsPerMillichord(Chord* chord) const
                   break;
             }
 
-      float quarterNotesPerChord = ticksPerChord / 480.0;
+      double quarterNotesPerChord = ticksPerChord / 480.0;
 
-      float beatsPerChord = quarterNotesPerChord / quarterNotesPerBeat;
-      float millisecondsPerChord = beatsPerChord * millisecondsPerBeat;
+      double beatsPerChord = quarterNotesPerChord / quarterNotesPerBeat;
+      double millisecondsPerChord = beatsPerChord * millisecondsPerBeat;
 
       return millisecondsPerChord / _millichordsPerChord;
       }
@@ -167,7 +169,7 @@ float BagpipeDurations::millisecondsPerMillichord(Chord* chord) const
 //---------------------------------------------------------
 //   setEvent
 //---------------------------------------------------------
-void BagpipeDurations::setEvent(Chord* chord, int onTime, int length) const
+void DurationsModifier::setEvent(Chord* chord, int onTime, double length) const
       {
       if (!chord)
             return;
@@ -178,7 +180,7 @@ void BagpipeDurations::setEvent(Chord* chord, int onTime, int length) const
             for (NoteEvent& event : note->playEvents()) {
                   NoteEvent newEvent = event;
                   newEvent.setOntime(onTime);
-                  newEvent.setLen(length);
+                  newEvent.setLen(static_cast<int>(length));
 
                   _score->undo(new ChangeNoteEvent(note, &event, newEvent));
                   }
@@ -188,7 +190,7 @@ void BagpipeDurations::setEvent(Chord* chord, int onTime, int length) const
 //---------------------------------------------------------
 //   setOnTime
 //---------------------------------------------------------
-void BagpipeDurations::setOnTime(Chord* chord, int ontime) const
+void DurationsModifier::setOnTime(Chord* chord, int ontime) const
       {
       if (!chord)
             return;
@@ -210,7 +212,7 @@ void BagpipeDurations::setOnTime(Chord* chord, int ontime) const
 //---------------------------------------------------------
 //   setOffTime
 //---------------------------------------------------------
-void BagpipeDurations::setOffTime(Chord* chord, int offtime) const
+void DurationsModifier::setOffTime(Chord* chord, int offtime) const
       {
       if (!chord)
             return;
@@ -231,20 +233,20 @@ void BagpipeDurations::setOffTime(Chord* chord, int offtime) const
 //---------------------------------------------------------
 //   setAfterBeatAtStart
 //---------------------------------------------------------
-void BagpipeDurations::setAfterBeatAtStart(Chord* chord, QVector<Chord*>& graceNotesPrev, QVector<Chord*>& graceNotesThis) const
+void DurationsModifier::setAfterBeatAtStart(Chord* chord, vector<Chord*>& graceNotesPrev, vector<Chord*>& graceNotesThis) const
       {
       if (!chord)
             return;
 
-      if (graceNotesPrev.isEmpty() && graceNotesThis.isEmpty())
+      if (graceNotesPrev.size() == 0 && graceNotesThis.size() == 0)
             setOnTime(chord, 0);
 
-      Chord* prevChord = 0;
+      Chord* prevChord = nullptr;
 
       int onTimePrev = _millichordsPerChord;
       int onTimeThis = 0;
 
-      int millichordsPerGraceNoteThis = 0;
+      double millichordsPerGraceNoteThis = 0;
 
       // Set durations of previous chord's grace notes, with on time starting at _millichordsPerChord(1000)
       for (auto iter = graceNotesPrev.begin(); iter != graceNotesPrev.end(); ++iter) {
@@ -252,7 +254,7 @@ void BagpipeDurations::setAfterBeatAtStart(Chord* chord, QVector<Chord*>& graceN
 
             prevChord = toChord(graceChord->parent());
 
-            int millichordsPerGraceNotePrev = _baseMillisecondsPerGraceNote / millisecondsPerMillichord(prevChord);
+            double millichordsPerGraceNotePrev = _baseMillisecondsPerGraceNote / millisecondsPerMillichord(prevChord);
             millichordsPerGraceNoteThis = _baseMillisecondsPerGraceNote / millisecondsPerMillichord(chord);
 
             setEvent(graceChord, onTimePrev, millichordsPerGraceNotePrev);
@@ -282,20 +284,20 @@ void BagpipeDurations::setAfterBeatAtStart(Chord* chord, QVector<Chord*>& graceN
 //---------------------------------------------------------
 //   setBeforeBeatAtEnd
 //---------------------------------------------------------
-void BagpipeDurations::setBeforeBeatAtEnd(Chord* chord, QVector<Chord*>& graceNotesThis, QVector<Chord*>& graceNotesNext) const
+void DurationsModifier::setBeforeBeatAtEnd(Chord* chord, vector<Chord*>& graceNotesThis, vector<Chord*>& graceNotesNext) const
       {
       if (!chord)
             return;
 
-      if (graceNotesThis.isEmpty() && graceNotesNext.isEmpty())
+      if (graceNotesThis.size() == 0 && graceNotesNext.size() == 0)
             setOffTime(chord, _millichordsPerChord);
 
       int onTimeThis = _millichordsPerChord;
       int onTimeNext = 0;
 
-      Chord* nextChord = 0;
+      Chord* nextChord = nullptr;
 
-      int millichordsPerGraceNoteThis = 0;
+      double millichordsPerGraceNoteThis = 0;
 
       // Set durations of next chord's grace notes, in reverse
       for (auto iter = graceNotesNext.rbegin(); iter != graceNotesNext.rend(); ++iter) {
@@ -304,7 +306,7 @@ void BagpipeDurations::setBeforeBeatAtEnd(Chord* chord, QVector<Chord*>& graceNo
             nextChord = toChord(graceChord->parent());
 
             millichordsPerGraceNoteThis = _baseMillisecondsPerGraceNote / millisecondsPerMillichord(chord);
-            int millichordsPerGraceNoteNext = _baseMillisecondsPerGraceNote / millisecondsPerMillichord(nextChord);
+            double millichordsPerGraceNoteNext = _baseMillisecondsPerGraceNote / millisecondsPerMillichord(nextChord);
 
             onTimeThis -= millichordsPerGraceNoteThis;
             onTimeNext -= millichordsPerGraceNoteNext;
@@ -331,14 +333,14 @@ void BagpipeDurations::setBeforeBeatAtEnd(Chord* chord, QVector<Chord*>& graceNo
 //---------------------------------------------------------
 //   modifyChord
 //---------------------------------------------------------
-void BagpipeDurations::modifyChord(Chord* chord, Chord* prevChord) const
-      {      
+void DurationsModifier::modifyChord(Chord* chord, Chord* prevChord) const
+      {
       if (!chord)
             return;
 
-      QVector<Chord*> graceNotesAll;
-      QVector<Chord*> graceNotesPrev;
-      QVector<Chord*> graceNotesThis;
+      vector<Chord*> graceNotesAll;
+      vector<Chord*> graceNotesPrev;
+      vector<Chord*> graceNotesThis;
 
       // Collect 'after' grace notes of previous chord.
       if (prevChord)
@@ -353,6 +355,8 @@ void BagpipeDurations::modifyChord(Chord* chord, Chord* prevChord) const
             graceNotesThis.push_back(graceChord);
             }
 
+      Match match(_definitions, prevChord, graceNotesAll, chord);
+
       switch (_positionType) {
             case PositionType::Before:
                   setBeforeBeatAtEnd(prevChord, graceNotesPrev, graceNotesThis);
@@ -360,8 +364,8 @@ void BagpipeDurations::modifyChord(Chord* chord, Chord* prevChord) const
                   break;
 
             case PositionType::Varies: {
-                  //QVector<Chord*> graceNotesBefore;
-                  //QVector<Chord*> graceNotesAfter;
+                  //vector<Chord*> graceNotesBefore;
+                  //vector<Chord*> graceNotesAfter;
 
                   //// TBD: split graceNotesAll between graceNotesBefore and graceNotesAfter
 
@@ -374,9 +378,6 @@ void BagpipeDurations::modifyChord(Chord* chord, Chord* prevChord) const
                   setOffTime(prevChord, _millichordsPerChord);
                   setAfterBeatAtStart(chord, graceNotesPrev, graceNotesThis);
                   break;
-
-            default:
-                  break;
             }
       }
 
@@ -386,7 +387,7 @@ void BagpipeDurations::modifyChord(Chord* chord, Chord* prevChord) const
 //---------------------------------------------------------
 //   modifyScore
 //---------------------------------------------------------
-void BagpipeDurations::modifyScore()
+void DurationsModifier::modifyScore()
       {
       if (!_score->firstMeasure())
             return;
@@ -402,8 +403,8 @@ void BagpipeDurations::modifyScore()
             endSegment = _score->lastMeasure()->last();
             }
 
-      Chord* chord = 0;
-      Chord* prevChord = 0;
+      Chord* chord = nullptr;
+      Chord* prevChord = nullptr;
 
       for (Segment* segment = startSegment; segment != endSegment; segment = segment->next1()) {
 
@@ -442,5 +443,4 @@ void BagpipeDurations::modifyScore()
       }
 
 #pragma GCC diagnostic pop
-#pragma GCC diagnostic pop // TEMP
-}
+} // namespace Ms

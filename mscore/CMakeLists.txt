@@ -349,8 +349,6 @@ add_executable ( ${ExecutableName}
       abstractdialog.cpp abstractdialog.h
       toolbuttonmenu.cpp
       bagpipeassistant.cpp bagpipeassistant.h
-      bagpipedurations.cpp bagpipedurations.h
-      bagpipeembellishment.cpp bagpipeembellishment.h
 
       ${COCOABRIDGE}
       ${OMR_FILES}
@@ -363,6 +361,7 @@ add_executable ( ${ExecutableName}
 target_link_libraries(mscore
       awl
       diff_match_patch
+      bagpipe
       bww
       rtf2html
       ${QTSINGLEAPPLICATION_LIBRARIES}

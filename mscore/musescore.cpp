@@ -1653,8 +1653,10 @@ void MuseScore::selectionChanged(SelState selectionState)
             timeline()->changeSelection(selectionState);
       if (_pianoTools && _pianoTools->isVisible())
             _pianoTools->changeSelection(cs->selection());
-      if (bagpipeAssistant)
-            bagpipeAssistant->update(cs);
+      if (bagpipeAssistant) {
+            bagpipeAssistant->changeSelection(cs->selection());
+            bagpipeAssistant->setScore(cs);
+            }
       updateInspector();
       }
 
@@ -2174,6 +2176,37 @@ void MuseScore::showPlayPanel(bool visible)
             }
       playPanel->setVisible(visible);
       playId->setChecked(visible);
+      }
+
+//---------------------------------------------------------
+//   showBagpipeAssistant
+//---------------------------------------------------------
+
+void MuseScore::showBagpipeAssistant(bool visible)
+      {
+      QAction* action = getAction("bagpipeassistant");
+
+      if (bagpipeAssistant == nullptr) {
+            if (!visible)
+                  return;
+
+            bagpipeAssistant = new BagpipeAssistant(this);
+
+            connect(bagpipeAssistant, SIGNAL(gainChange(float)),     synti, SLOT(setGain(float)));
+            connect(bagpipeAssistant, SIGNAL(metronomeGainChanged(float)), seq, SLOT(setMetronomeGain(float)));
+            connect(bagpipeAssistant, SIGNAL(relTempoChanged(double)),seq, SLOT(setRelTempo(double)));
+            connect(bagpipeAssistant, SIGNAL(posChange(int)),         seq, SLOT(seek(int)));
+            connect(bagpipeAssistant, SIGNAL(closed(bool)),          action,   SLOT(setChecked(bool)));
+            connect(synti,     SIGNAL(gainChanged(float)), bagpipeAssistant, SLOT(setGain(float)));
+
+            bagpipeAssistant->setGain(synti->gain());
+            bagpipeAssistant->setScore(cs);
+
+            mscore->stackUnder(bagpipeAssistant);
+            }
+
+      bagpipeAssistant->setVisible(visible);
+      action->setChecked(visible);
       }
 
 //---------------------------------------------------------
