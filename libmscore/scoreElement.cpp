@@ -182,14 +182,12 @@ QVariant ScoreElement::propertyDefault(Pid id) const
       {
       if (id == Pid::SUB_STYLE)
             return int(SubStyleId::DEFAULT);
-#if 1       // this is wrong, styled properties should be considered first
-      for (const StyledProperty& p : subStyle(subStyleId())) {
-            if (p.pid == id)
-                  return score()->styleV(p.sid);
+      // this is wrong, styled properties should be considered first:
+      QVariant v = styledPropertyDefault(id);
+      if (!v.isValid()) {
+            qDebug("<%s>(%d) not found in <%s> style <%s>", propertyName(id), int(id), name(), subStyleName(subStyleId()));
             }
-#endif
-      qDebug("<%s> not found in <%s> style <%s>", propertyName(id), name(), subStyleName(subStyleId()));
-      return QVariant();
+      return v;
       }
 
 //---------------------------------------------------------
@@ -198,9 +196,12 @@ QVariant ScoreElement::propertyDefault(Pid id) const
 
 QVariant ScoreElement::styledPropertyDefault(Pid id) const
       {
-      for (const StyledProperty& p : subStyle(subStyleId())) {
-            if (p.pid == id)
-                  return score()->styleV(p.sid);
+      for (const StyledProperty* spp = styledProperties(); spp->sid != Sid::NOSTYLE; ++spp) {
+            if (spp->pid == id) {
+                  if (propertyType(id) == P_TYPE::SP_REAL)
+                        return score()->styleP(spp->sid);
+                  return score()->styleV(spp->sid);
+                  }
             }
       return QVariant();
       }
@@ -261,13 +262,25 @@ static void changeProperties(ScoreElement* e, Pid t, const QVariant& st, Propert
       {
       if (propertyLink(t)) {
             for (ScoreElement* ee : e->linkList()) {
-                  if (ee->getProperty(t) != st || ee->propertyFlags(t) != ps)
-                        ee->score()->undo(new ChangeProperty(ee, t, st, ps));
+                  if (ee->getProperty(t) != st || ee->propertyFlags(t) != ps) {
+                        if (ee->isBracketItem()) {
+                              BracketItem* bi = toBracketItem(ee);
+                              ee->score()->undo(new ChangeBracketProperty(bi->staff(), bi->column(), t, st, ps));
+                              }
+                        else
+                              ee->score()->undo(new ChangeProperty(ee, t, st, ps));
+                        }
                   }
             }
       else {
-            if (e->getProperty(t) != st || e->propertyFlags(t) != ps)
-                  e->score()->undo(new ChangeProperty(e, t, st, ps));
+            if (e->getProperty(t) != st || e->propertyFlags(t) != ps) {
+                  if (e->isBracketItem()) {
+                        BracketItem* bi = toBracketItem(e);
+                        e->score()->undo(new ChangeBracketProperty(bi->staff(), bi->column(), t, st, ps));
+                        }
+                  else
+                        e->score()->undo(new ChangeProperty(e, t, st, ps));
+                  }
             }
       }
 
@@ -314,6 +327,8 @@ void ScoreElement::undoChangeProperty(Pid id, const QVariant& v, PropertyFlags p
                   }
             }
       changeProperties(this, id, v, ps);
+      if (id != Pid::GENERATED)
+            changeProperties(this, Pid::GENERATED, QVariant(false), PropertyFlags::NOSTYLE);
       }
 
 //---------------------------------------------------------
@@ -333,10 +348,15 @@ void ScoreElement::undoPushProperty(Pid id)
 bool ScoreElement::readProperty(const QStringRef& s, XmlReader& e, Pid id)
       {
       if (s == propertyName(id)) {
+            QVariant v = Ms::getProperty(id, e);
             if (id == Pid::SUB_STYLE)
-                  initSubStyle(SubStyleId(Ms::getProperty(id, e).toInt()));
+                  initSubStyle(SubStyleId(v.toInt()));
             else {
-                  setProperty(id, Ms::getProperty(id, e));
+                  if (propertyType(id) == P_TYPE::SP_REAL) {
+                        qreal _spatium = score()->spatium();
+                        v = v.toReal() * _spatium;
+                        }
+                  setProperty(id, v);
                   setPropertyFlags(id, PropertyFlags::UNSTYLED);
                   }
             return true;
@@ -352,8 +372,23 @@ void ScoreElement::writeProperty(XmlWriter& xml, Pid id) const
       {
       if (propertyType(id) == P_TYPE::SP_REAL) {
             qreal _spatium = score()->spatium();
-            xml.tag(id, QVariant(getProperty(id).toReal()/_spatium),
-               QVariant(propertyDefault(id).toReal()/_spatium));
+            qreal f1       = getProperty(id).toReal();
+            qreal f2       = propertyDefault(id).toReal();
+            if (qAbs(f1 - f2) < 0.0001)
+                  return;
+            QVariant val          = QVariant(f1/_spatium);
+            QVariant defaultValue = QVariant(f2/_spatium);
+            xml.tag(id, val, defaultValue);
+            }
+      else if (propertyType(id) == P_TYPE::POINT_SP) {
+            qreal _spatium = score()->spatium();
+            QPointF p1       = getProperty(id).toPoint();
+            QPointF p2       = propertyDefault(id).toPoint();
+            if ( (qAbs(p1.x() - p2.x()) < 0.0001) && (qAbs(p1.y() - p2.y()) < 0.0001))
+                  return;
+            QVariant val          = QVariant(p1/_spatium);
+            QVariant defaultValue = QVariant(p2/_spatium);
+            xml.tag(id, val, defaultValue);
             }
       else {
             if (getProperty(id).isValid())
@@ -398,28 +433,28 @@ void ScoreElement::reset()
 
 //---------------------------------------------------------
 //   linkTo
+//    link this to element
 //---------------------------------------------------------
 
 void ScoreElement::linkTo(ScoreElement* element)
       {
       Q_ASSERT(element != this);
-      if (!_links) {
-            if (element->links()) {
-                  _links = element->_links;
-                  Q_ASSERT(_links->contains(element));
-                  }
-            else {
-                  _links = new LinkedElements(score());
-                  _links->append(element);
-                  element->_links = _links;
-                  }
-            Q_ASSERT(!_links->contains(this));
-            _links->append(this);
+      Q_ASSERT(!_links);
+
+      if (element->links()) {
+            _links = element->_links;
+            Q_ASSERT(_links->contains(element));
             }
       else {
+            if (isStaff())
+                  _links = new LinkedElements(score(), -1); // dont use lid
+            else
+                  _links = new LinkedElements(score());
             _links->append(element);
             element->_links = _links;
             }
+      Q_ASSERT(!_links->contains(this));
+      _links->append(this);
       }
 
 //---------------------------------------------------------
@@ -428,18 +463,28 @@ void ScoreElement::linkTo(ScoreElement* element)
 
 void ScoreElement::unlink()
       {
-      if (_links) {
-            Q_ASSERT(_links->contains(this));
-            _links->removeOne(this);
+      Q_ASSERT(_links);
+      Q_ASSERT(_links->contains(this));
+      _links->removeOne(this);
 
-            // if link list is empty, remove list
-            if (_links->size() <= 1) {
-                  if (!_links->empty())         // abnormal case: only "this" is in list
-                        _links->front()->_links = 0;
-                  delete _links;
-                  }
-            _links = 0;
+      // if link list is empty, remove list
+      if (_links->size() <= 1) {
+            if (!_links->empty())
+                  _links->front()->_links = 0;
+            delete _links;
             }
+      _links = 0; // this element is not linked anymore
+      }
+
+//---------------------------------------------------------
+//   isLinked
+///  return true if se is different and
+///  linked to this element
+//---------------------------------------------------------
+
+bool ScoreElement::isLinked(ScoreElement* se)
+      {
+      return se != this && _links && _links->contains(se);
       }
 
 //---------------------------------------------------------
@@ -460,7 +505,7 @@ QList<ScoreElement*> ScoreElement::linkList() const
       {
       QList<ScoreElement*> el;
       if (_links)
-            el.append(*_links);
+            el = *_links;
       else
             el.append(const_cast<ScoreElement*>(this));
       return el;
@@ -478,7 +523,8 @@ LinkedElements::LinkedElements(Score* score)
 LinkedElements::LinkedElements(Score* score, int id)
       {
       _lid = id;
-      score->linkId(id);      // remember used id
+      if (_lid != -1)
+            score->linkId(id);      // remember used id
       }
 
 //---------------------------------------------------------
@@ -555,8 +601,15 @@ void ScoreElement::styleChanged()
       {
       for (const StyledProperty* spp = styledProperties(); spp->sid != Sid::NOSTYLE; ++spp) {
             PropertyFlags& f = propertyFlags(spp->pid);
-            if (f == PropertyFlags::STYLED)
-                  setProperty(spp->pid, score()->styleV(spp->sid));
+            if (f == PropertyFlags::STYLED) {
+                  if (propertyType(spp->pid) == P_TYPE::SP_REAL) {
+                        qreal val = score()->styleP(spp->sid);
+                        setProperty(spp->pid, val);
+                        }
+                  else {
+                        setProperty(spp->pid, score()->styleV(spp->sid));
+                        }
+                  }
             }
       }
 
@@ -616,7 +669,7 @@ bool ScoreElement::isSLineSegment() const
 //   isText
 //---------------------------------------------------------
 
-bool ScoreElement::isText() const
+bool ScoreElement::isTextBase() const
       {
       return type()  == ElementType::TEXT
          || type() == ElementType::LYRICS
@@ -626,6 +679,7 @@ bool ScoreElement::isText() const
          || type() == ElementType::MARKER
          || type() == ElementType::JUMP
          || type() == ElementType::STAFF_TEXT
+         || type() == ElementType::SYSTEM_TEXT
          || type() == ElementType::REHEARSAL_MARK
          || type() == ElementType::INSTRUMENT_CHANGE
          || type() == ElementType::FIGURED_BASS

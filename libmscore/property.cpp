@@ -76,7 +76,7 @@ static constexpr PropertyMetaData propertyList[] = {
       { Pid::BARLINE_SPAN,            "barline_span",            false, "span",                  P_TYPE::BOOL            },
       { Pid::BARLINE_SPAN_FROM,       "barline_span_from",       false, "spanFromOffset",        P_TYPE::INT             },
       { Pid::BARLINE_SPAN_TO,         "barline_span_to",         false, "spanToOffset",          P_TYPE::INT             },
-      { Pid::USER_OFF,                "user_off",                false, "userOff",               P_TYPE::POINT_SP         },
+      { Pid::USER_OFF,                "offset",                  false, "offset",                P_TYPE::POINT_SP         },
       { Pid::FRET,                    "fret",                    true,  "fret",                  P_TYPE::INT             },
       { Pid::STRING,                  "string",                  true,  "string",                P_TYPE::INT             },
       { Pid::GHOST,                   "ghost",                   true,  "ghost",                 P_TYPE::BOOL            },
@@ -108,13 +108,13 @@ static constexpr PropertyMetaData propertyList[] = {
       { Pid::SCALE,                   "scale",                   false, "scale",                 P_TYPE::SCALE           },
       { Pid::LOCK_ASPECT_RATIO,       "lock_aspect_ratio",       false, "lockAspectRatio",       P_TYPE::BOOL            },
       { Pid::SIZE_IS_SPATIUM,         "size_is_spatium",         false, "sizeIsSpatium",         P_TYPE::BOOL            },
-      { Pid::TEXT,                    "text",                    false, 0,                       P_TYPE::STRING          },
+      { Pid::TEXT,                    "text",                    true,  0,                       P_TYPE::STRING          },
       { Pid::HTML_TEXT,               "html_text",               false, 0,                       P_TYPE::STRING          },
       { Pid::USER_MODIFIED,           "user_modified",           false, 0,                       P_TYPE::BOOL            },
       { Pid::BEAM_POS,                "beam_pos",                false, 0,                       P_TYPE::POINT           },
       { Pid::BEAM_MODE,               "beam_mode",               true, "BeamMode",               P_TYPE::BEAM_MODE       },
       { Pid::BEAM_NO_SLOPE,           "beam_no_slope",           true, "noSlope",                P_TYPE::BOOL            },
-      { Pid::USER_LEN,                "user_len",                false, "userLen",               P_TYPE::REAL            },
+      { Pid::USER_LEN,                "user_len",                false, "userLen",               P_TYPE::SP_REAL            },
 
       { Pid::SPACE,                   "space",                   false, "space",                 P_TYPE::SP_REAL         },
       { Pid::TEMPO,                   "tempo",                   true,  "tempo",                 P_TYPE::TEMPO           },
@@ -165,7 +165,7 @@ static constexpr PropertyMetaData propertyList[] = {
       { Pid::GROUPS,                  "groups",                  false, 0,                       P_TYPE::GROUPS          },
       { Pid::LINE_STYLE,              "line_style",              false, "lineStyle",             P_TYPE::INT             },
       { Pid::LINE_COLOR,              "line_color",              false, 0,                       P_TYPE::COLOR           },
-      { Pid::LINE_WIDTH,              "line_width",              false, "lineWidth",             P_TYPE::SPATIUM         },
+      { Pid::LINE_WIDTH,              "line_width",              false, "lineWidth",             P_TYPE::SP_REAL         },
       { Pid::LASSO_POS,               "lasso_pos",               false, 0,                       P_TYPE::POINT_MM        },
       { Pid::LASSO_SIZE,              "lasso_size",              false, 0,                       P_TYPE::SIZE_MM         },
       { Pid::TIME_STRETCH,            "time_stretch",            false, "timeStretch",           P_TYPE::REAL            },
@@ -179,10 +179,7 @@ static constexpr PropertyMetaData propertyList[] = {
       { Pid::SPANNER_TICKS,           "spanner_ticks",           true,  "ticks",                 P_TYPE::INT             },
       { Pid::SPANNER_TRACK2,          "spanner_track2",          true,  "track2",                P_TYPE::INT             },
       { Pid::USER_OFF2,               "user_off2",               false, "userOff2",              P_TYPE::POINT_SP        },
-      { Pid::BEGIN_TEXT_STYLE,        "begin_text_style",        false, "beginTextStyle",        P_TYPE::TEXT_STYLE      },
-      { Pid::CONTINUE_TEXT_STYLE,     "continue_text_style",     false, "continueTextStyle",     P_TYPE::TEXT_STYLE      },
 
-      { Pid::END_TEXT_STYLE,          "end_text_style",          false, "endTextStyle",          P_TYPE::TEXT_STYLE      },
       { Pid::BREAK_MMR,               "break_mmr",               false, "breakMultiMeasureRest", P_TYPE::BOOL            },
       { Pid::REPEAT_COUNT,            "repeat_count",            true,  "endRepeat",             P_TYPE::INT             },
       { Pid::USER_STRETCH,            "user_stretch",            false, "stretch",               P_TYPE::REAL            },
@@ -218,6 +215,8 @@ static constexpr PropertyMetaData propertyList[] = {
       { Pid::FRET_FRETS,              "fret_frets",              false, "frets",                 P_TYPE::INT             },
       { Pid::FRET_BARRE,              "fret_barre",              false, "barre",                 P_TYPE::INT             },
       { Pid::FRET_OFFSET,             "fret_offset",             false, "fretOffset",            P_TYPE::INT             },
+      { Pid::FRET_NUM_POS,            "fret_num_pos",            false, "fretNumPos",            P_TYPE::INT             },
+
       { Pid::SYSTEM_BRACKET,          "system_bracket",          false, "type",                  P_TYPE::INT             },
       { Pid::GAP,                     "gap",                     false, 0,                       P_TYPE::BOOL            },
       { Pid::AUTOPLACE,               "autoplace",               false, "autoplace",             P_TYPE::BOOL            },
@@ -269,9 +268,9 @@ static constexpr PropertyMetaData propertyList[] = {
       { Pid::FRAME_BG_COLOR,          "frame_bg_color",          false, "frameBgColor",          P_TYPE::COLOR           },
       { Pid::FONT_SPATIUM_DEPENDENT,  "font_spatium_dependent",  false, "sizeIsSpatiumDependent", P_TYPE::BOOL           },
       { Pid::ALIGN,                   "align",                   false, "align",                 P_TYPE::ALIGN           },
-      { Pid::OFFSET,                  "offset",                  false, "offset",                P_TYPE::POINT           },
-
+      { Pid::OFFSET,                  "layoutOffset",            false, "layoutOffset",          P_TYPE::POINT           },
       { Pid::OFFSET_TYPE,             "offset_type",             false, "offsetType",            P_TYPE::INT             },
+
       { Pid::SYSTEM_FLAG,             "system_flag",             false, "systemFlag",            P_TYPE::BOOL            },
       { Pid::BEGIN_TEXT,              "begin_text",              false, "beginText",             P_TYPE::STRING          },
       { Pid::BEGIN_TEXT_ALIGN,        "begin_text_align",        false, "beginTextAlign",        P_TYPE::ALIGN           },
@@ -485,7 +484,6 @@ QVariant getProperty(Pid id, XmlReader& e)
             case P_TYPE::POINT_MM:              // not supported
             case P_TYPE::TDURATION:
             case P_TYPE::SIZE_MM:
-            case P_TYPE::TEXT_STYLE:
             case P_TYPE::INT_LIST:
                   return QVariant();
             case P_TYPE::SUB_STYLE:

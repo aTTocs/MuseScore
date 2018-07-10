@@ -107,6 +107,7 @@ Inspector::Inspector(QWidget* parent)
       _inspectorEdit = false;
       ie             = 0;
       oe             = 0;
+      oSameTypes     = true;
       _score         = 0;
 //      retranslate();
       setWindowTitle(tr("Inspector"));
@@ -161,31 +162,33 @@ void Inspector::update(Score* s)
       if (_inspectorEdit)     // if within an inspector-originated edit
             return;
       _score = s;
-      if (oe != element()) {
+      bool sameTypes = true;
+      if (!el())
+            return;
+
+      for (Element* ee : *el()) {
+            if (((element()->type() != ee->type()) && // different and
+                (!element()->isSystemText()     || !ee->isStaffText())  && // neither system text nor
+                (!element()->isStaffText()      || !ee->isSystemText()) && // staff text either side and
+                (!element()->isPedalSegment()   || !ee->isTextLineSegment()) && // neither pedal nor
+                (!element()->isTextLineSegment()|| !ee->isPedalSegment())    && // text line either side and
+                (!element()->isSlurTieSegment() || !ee->isSlurTieSegment())) || // neither Slur nor Tie either side, or
+                (ee->isNote() && toNote(ee)->chord()->isGrace() != toNote(element())->chord()->isGrace())) // HACK
+                  {
+                  sameTypes = false;
+                  break;
+                  }
+            }
+      if (oe != element() || oSameTypes != sameTypes) {
             delete ie;
             ie  = 0;
             oe  = element();
-            bool sameTypes = true;
+            oSameTypes = sameTypes;
             if (!element())
                   ie = new InspectorEmpty(this);
-            else {
-                  for (Element* ee : *el()) {
-                        if (((element()->type() != ee->type()) && // different and
-                            (!element()->isSystemText()     || !ee->isStaffText())  && // neither system text nor
-                            (!element()->isStaffText()      || !ee->isSystemText()) && // staff text either side and
-                            (!element()->isPedalSegment()   || !ee->isTextLineSegment()) && // neither pedal nor
-                            (!element()->isTextLineSegment()|| !ee->isPedalSegment())    && // text line either side and
-                            (!element()->isSlurTieSegment() || !ee->isSlurTieSegment())) || // neither Slur nor Tie either side, or
-                            (ee->isNote() && toNote(ee)->chord()->isGrace() != toNote(element())->chord()->isGrace())) // HACK
-                              {
-                              sameTypes = false;
-                              break;
-                              }
-                        }
-                  }
-            if (!sameTypes)
+            else if (!sameTypes)
                   ie = new InspectorGroupElement(this);
-            else if (element()) {
+            else {
                   switch(element()->type()) {
                         case ElementType::FBOX:
                         case ElementType::VBOX:
@@ -317,6 +320,9 @@ void Inspector::update(Score* s)
                               break;
                         case ElementType::FINGERING:
                               ie = new InspectorFingering(this);
+                              break;
+                        case ElementType::STEM:
+                              ie = new InspectorStem(this);
                               break;
                         default:
                               if (element()->isText())
@@ -845,32 +851,8 @@ InspectorClef::InspectorClef(QWidget* parent)
 
 void InspectorClef::setElement()
       {
-      otherClef = nullptr;                      // no 'other clef' yet
+      otherClef = toClef(inspector->element())->otherClef();
       InspectorElementBase::setElement();
-
-      // try to locate the 'other clef' of a courtesy / main pair
-      Clef* clef = toClef(inspector->element());
-      // if not in a clef-segment-measure hierarchy, do nothing
-      if (!clef->parent() || clef->parent()->type() != ElementType::SEGMENT)
-            return;
-      Segment*    segm = toSegment(clef->parent());
-      int         segmTick = segm->tick();
-      if (!segm->parent() || segm->parent()->type() != ElementType::MEASURE)
-            return;
-
-      Measure* meas = toMeasure(segm->parent());
-      Measure* otherMeas = nullptr;
-      Segment* otherSegm = nullptr;
-      if (segmTick == meas->tick())                         // if clef segm is measure-initial
-            otherMeas = meas->prevMeasure();                // look for a previous measure
-      else if (segmTick == meas->tick()+meas->ticks())      // if clef segm is measure-final
-            otherMeas = meas->nextMeasure();                // look for a next measure
-      // look for a clef segment in the 'other' measure at the same tick of this clef segment
-      if (otherMeas)
-            otherSegm = otherMeas->findSegment(SegmentType::Clef, segmTick);
-      // if any 'other' segment found, look for a clef in the same track as this
-      if (otherSegm)
-            otherClef = toClef(otherSegm->element(clef->track()));
       }
 
 void InspectorClef::valueChanged(int idx)
@@ -879,6 +861,22 @@ void InspectorClef::valueChanged(int idx)
       if (idx == 6 && otherClef)
             otherClef->setShowCourtesy(c.showCourtesy->isChecked());
       InspectorBase::valueChanged(idx);
+      }
+
+//---------------------------------------------------------
+//   InspectorStem
+//---------------------------------------------------------
+
+InspectorStem::InspectorStem(QWidget* parent)
+   : InspectorElementBase(parent)
+      {
+      s.setupUi(addWidget());
+
+      const std::vector<InspectorItem> iiList = {
+            { Pid::LINE_WIDTH, 0, s.lineWidth,  s.resetLineWidth  },
+            { Pid::USER_LEN,   0, s.userLength, s.resetUserLength },
+            };
+      mapSignals(iiList);
       }
 
 //---------------------------------------------------------

@@ -103,7 +103,7 @@ namespace Ms {
 void Element::spatiumChanged(qreal oldValue, qreal newValue)
       {
       _userOff *= (newValue / oldValue);
-      _readPos *= (newValue / oldValue);
+//      _readPos *= (newValue / oldValue);
       }
 
 //---------------------------------------------------------
@@ -151,7 +151,7 @@ QString Element::subtypeName() const
 Element::Element(Score* s, ElementFlags f)
    : ScoreElement(s)
       {
-      _flags         = f | ElementFlag::ENABLED | ElementFlag::EMPTY | ElementFlag::AUTOPLACE | ElementFlag::SELECTABLE | ElementFlag::VISIBLE;
+      _flags         = f;
       _placement     = Placement::BELOW;
       _track         = -1;
       _color         = MScore::defaultColor;
@@ -170,7 +170,6 @@ Element::Element(const Element& e)
       _mag        = e._mag;
       _pos        = e._pos;
       _userOff    = e._userOff;
-      _readPos    = e._readPos;
       _bbox       = e._bbox;
       _tag        = e._tag;
       _z          = e._z;
@@ -201,20 +200,9 @@ Element::~Element()
 Element* Element::linkedClone()
       {
       Element* e = clone();
+      e->setAutoplace(true);
       score()->undo(new Link(e, this));
       return e;
-      }
-
-//---------------------------------------------------------
-//   adjustReadPos
-//---------------------------------------------------------
-
-void Element::adjustReadPos()
-      {
-      if (!_readPos.isNull()) {
-            _userOff = _readPos - _pos;
-            _readPos = QPointF();
-            }
       }
 
 //---------------------------------------------------------
@@ -287,34 +275,39 @@ Part* Element::part() const
 
 QColor Element::curColor() const
       {
-      return curColor(this);
+      return curColor(visible());
       }
 
 //---------------------------------------------------------
 //   curColor
 //---------------------------------------------------------
 
-QColor Element::curColor(const Element* proxy) const
+QColor Element::curColor(bool isVisible) const
+      {
+      return curColor(isVisible, color());
+      }
+
+QColor Element::curColor(bool isVisible, QColor normalColor) const
       {
       // the default element color is always interpreted as black in
       // printing
       if (score() && score()->printing())
-            return (proxy->color() == MScore::defaultColor) ? Qt::black : proxy->color();
+            return (normalColor == MScore::defaultColor) ? Qt::black : normalColor;
 
       if (flag(ElementFlag::DROP_TARGET))
             return MScore::dropColor;
       bool marked = false;
       if (isNote()) {
-            const Note* note = static_cast<const Note*>(this);
-            marked = note->mark();
+            //const Note* note = static_cast<const Note*>(this);
+            marked = toNote(this)->mark();
             }
-      if (proxy->selected() || marked ) {
+      if (selected() || marked ) {
             QColor originalColor;
             if (track() == -1)
                   originalColor = MScore::selectColor[0];
             else
                   originalColor = MScore::selectColor[voice()];
-            if (proxy->visible())
+            if (isVisible)
                   return originalColor;
             else {
                   int red = originalColor.red();
@@ -324,9 +317,9 @@ QColor Element::curColor(const Element* proxy) const
                   return QColor(red + tint * (255 - red), green + tint * (255 - green), blue + tint * (255 - blue));
                   }
             }
-      if (!proxy->visible())
+      if (!isVisible)
             return Qt::gray;
-      return proxy->color();
+      return normalColor;
       }
 
 //---------------------------------------------------------
@@ -472,17 +465,16 @@ void Element::writeProperties(XmlWriter& xml) const
       // copy paste should not keep links
       if (_links && (_links->size() > 1) && !xml.clipboardmode())
             xml.tag("lid", _links->lid());
-      if (!autoplace() && !userOff().isNull()) {
-            if (isVoltaSegment()
-                || isGlissandoSegment()
-                || isChordRest()
-                || isRehearsalMark()
-                || isDynamic()
-                || isSystemDivider()
-                || (xml.clipboardmode() && isSLineSegment()))
-                  xml.tag("offset", userOff() / spatium());
+      if (!autoplace() && !userOff().isNull()) {      // TODO: remove pos of offset
+            if (isFingering() || isHarmony() || isTuplet() || isStaffText()) {
+                  QPointF p = userOff() / score()->spatium();
+                  if (isStaffText())
+                        xml.tag("pos", p + QPointF(0.0, -2.0));
+                  else
+                        xml.tag("pos", p);
+                  }
             else
-                  xml.tag("pos", pos() / score()->spatium());
+                  xml.tag("offset", userOff() / score()->spatium());
             }
       if (((track() != xml.curTrack()) || isSlur()) && (track() != -1)) {
             int t;
@@ -519,10 +511,6 @@ bool Element::readProperties(XmlReader& e)
             setVisible(e.readInt());
       else if (tag == "selected") // obsolete
             e.readInt();
-      else if (tag == "userOff") {
-            _userOff = e.readPoint();
-            setAutoplace(false);
-            }
       else if (tag == "lid") {
             int id = e.readInt();
             _links = e.linkIds().value(id);
@@ -551,13 +539,8 @@ bool Element::readProperties(XmlReader& e)
             if (val >= 0)
                   e.initTick(score()->fileDivision(val));
             }
-      else if (tag == "offset") {
-            setUserOff(e.readPoint() * spatium());
-            setAutoplace(false);
-            }
-      else if (tag == "pos") {
-            QPointF pt = e.readPoint();
-            _readPos = pt * score()->spatium();
+      else if (tag == "offset" || tag == "pos") {
+            setUserOff(e.readPoint() * score()->spatium());
             setAutoplace(false);
             }
       else if (tag == "voice")
@@ -1059,7 +1042,7 @@ bool Element::setProperty(Pid propertyId, const QVariant& v)
                   return false;
             }
       triggerLayout();
-      setGenerated(false);
+//      setGenerated(false);
       return true;
       }
 
@@ -1542,6 +1525,20 @@ bool Element::prevGrip(EditData& ed) const
 
 bool Element::isUserModified() const
       {
+      for (const StyledProperty* spp = styledProperties(); spp->sid != Sid::NOSTYLE; ++spp) {
+            Pid pid               = spp->pid;
+            QVariant val          = getProperty(pid);
+            QVariant defaultValue = propertyDefault(pid);
+
+            if (propertyType(pid) == P_TYPE::SP_REAL) {
+                  if (qAbs(val.toReal() - defaultValue.toReal()) > 0.0001)    // we dont care spatium diffs that small
+                        return true;
+                  }
+            else  {
+                  if (getProperty(pid) != propertyDefault(pid))
+                        return true;
+                  }
+            }
       return !visible() || !userOff().isNull() || (color() != MScore::defaultColor);
       }
 
@@ -1699,9 +1696,9 @@ QRectF Element::drag(EditData& ed)
             }
 
       setUserOff(QPointF(x, y));
-      setGenerated(false);
+//      setGenerated(false);
 
-      if (isText()) {         // TODO: check for other types
+      if (isTextBase()) {         // TODO: check for other types
             //
             // restrict move to page boundaries
             //
@@ -1815,8 +1812,10 @@ void Element::endEditDrag(EditData& ed)
                   }
             eed->propertyData.clear();
             }
-      if (changed)
+      if (changed) {
             undoChangeProperty(Pid::AUTOPLACE, false);
+            undoChangeProperty(Pid::GENERATED, false);
+            }
       }
 
 //---------------------------------------------------------
@@ -1873,8 +1872,6 @@ void Element::autoplaceSegmentElement(qreal minDistance)
                   nm->staffShape(staffIdx()).add(s2);
                   }
             }
-      else
-            adjustReadPos();
       }
 
 }

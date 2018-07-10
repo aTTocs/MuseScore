@@ -28,14 +28,14 @@ namespace Ms {
 //      Element(Score* = 0, ElementFlags = ElementFlag::NOTHING);
 //---------------------------------------------------------
 
-Fingering::Fingering(SubStyleId ssid, Score* s, ElementFlag ef)
+Fingering::Fingering(SubStyleId ssid, Score* s, ElementFlags ef)
    : TextBase(s, ef)
       {
       initSubStyle(ssid);
       }
 
-Fingering::Fingering(Score* s)
-  : Fingering(SubStyleId::FINGERING, s, ElementFlag::HAS_TAG)
+Fingering::Fingering(Score* s, ElementFlags ef)
+  : Fingering(SubStyleId::FINGERING, s, ef)
       {
       }
 
@@ -58,7 +58,7 @@ void Fingering::layout()
 
             qreal x = 0.0;
             qreal y = 0.0;
-            qreal headWidth = note()->headWidth();
+            qreal headWidth = note()->bboxRightPos();
             qreal headHeight = note()->headHeight();
             qreal fh = headHeight;        // TODO: fingering number height
 

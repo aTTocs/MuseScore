@@ -47,8 +47,6 @@ void PalmMuteSegment::layout()
                               rUserYoffset() = -(d + minDistance);
                         }
                   }
-            else
-                  adjustReadPos();
             }
       }
 
@@ -60,6 +58,7 @@ PalmMute::PalmMute(Score* s)
    : TextLineBase(s)
       {
       initSubStyle(SubStyleId::PALM_MUTE);
+      resetProperty(Pid::LINE_VISIBLE);
       }
 
 //---------------------------------------------------------
@@ -126,6 +125,9 @@ QVariant PalmMute::propertyDefault(Pid propertyId) const
 
             case Pid::LINE_STYLE:
                   return score()->styleV(Sid::palmMuteLineStyle);
+
+            case Pid::LINE_VISIBLE:
+                  return true;
 
             case Pid::BEGIN_TEXT_OFFSET:
                   return score()->styleV(Sid::palmMuteBeginTextOffset).toPointF();

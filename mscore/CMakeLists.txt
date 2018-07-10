@@ -86,6 +86,7 @@ QT5_WRAP_UI (ui_headers
       debugger/stem.ui
       debugger/system.ui
       debugger/timesig.ui
+      debugger/bracket.ui
 
       inspector/inspector_element.ui
       inspector/inspector_vbox.ui
@@ -140,6 +141,7 @@ QT5_WRAP_UI (ui_headers
       inspector/offset_select.ui
       inspector/scale_select.ui
       inspector/size_select.ui
+      inspector/inspector_stem.ui
       ${SCRIPT_UI}
       )
 
@@ -348,6 +350,8 @@ add_executable ( ${ExecutableName}
       toolbarEditor.cpp toolbarEditor.h
       abstractdialog.cpp abstractdialog.h
       toolbuttonmenu.cpp
+      preferenceslistwidget.cpp preferenceslistwidget.h
+      extension.cpp extension.h
       bagpipeassistant.cpp bagpipeassistant.h
 
       ${COCOABRIDGE}

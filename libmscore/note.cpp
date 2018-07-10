@@ -63,7 +63,8 @@ namespace Ms {
 //    notehead groups
 //---------------------------------------------------------
 
-static const SymId noteHeads[2][int(NoteHead::Group::HEAD_GROUPS)][int(NoteHead::Type::HEAD_TYPES)] = {
+//int(NoteHead::Group::HEAD_GROUPS) - 1: "-1" is needed to prevent building CUSTOM_GROUP noteheads set, since it is built by users and keep a specific set of existing noteheads
+static const SymId noteHeads[2][int(NoteHead::Group::HEAD_GROUPS) - 1][int(NoteHead::Type::HEAD_TYPES)] = {
    {     // down stem
       { SymId::noteheadWhole,               SymId::noteheadHalf,                SymId::noteheadBlack,               SymId::noteheadDoubleWhole  },
       { SymId::noteheadXWhole,              SymId::noteheadXHalf,               SymId::noteheadXBlack,              SymId::noteheadXDoubleWhole  },
@@ -279,7 +280,8 @@ static NoteHeadName noteHeadGroupNames[] = {
       {"g-name",       QT_TRANSLATE_NOOP("noteheadnames",  "G (Name)") },
       {"g-flat-name",  QT_TRANSLATE_NOOP("noteheadnames",  "G Flat (Name)") },
       {"h-name",       QT_TRANSLATE_NOOP("noteheadnames",  "H (Name)") },
-      {"h-sharp-name", QT_TRANSLATE_NOOP("noteheadnames",  "H Sharp (Name)") }
+      {"h-sharp-name", QT_TRANSLATE_NOOP("noteheadnames",  "H Sharp (Name)") },
+      {"custom",       QT_TRANSLATE_NOOP("noteheadnames",  "Custom") }
       };
 
 // same order as NoteHead::Type
@@ -539,9 +541,8 @@ NoteHead::Group NoteHead::headGroup() const
 //---------------------------------------------------------
 
 Note::Note(Score* s)
-   : Element(s)
+   : Element(s, ElementFlag::MOVABLE)
       {
-      setFlags(ElementFlag::MOVABLE | ElementFlag::SELECTABLE);
       _playEvents.append(NoteEvent());    // add default play event
       _cachedNoteheadSym = SymId::noSym;
       _cachedSymNull = SymId::noSym;
@@ -559,7 +560,7 @@ Note::Note(const Note& n, bool link)
    : Element(n)
       {
       if (link)
-            score()->undo(new Link(const_cast<Note*>(&n), this));
+            score()->undo(new Link(this, const_cast<Note*>(&n)));
       _subchannel        = n._subchannel;
       _line              = n._line;
       _fret              = n._fret;
@@ -599,7 +600,7 @@ Note::Note(const Note& n, bool link)
             Element* ce = e->clone();
             add(ce);
             if (link)
-                  score()->undo(new Link(const_cast<Element*>(e), ce));
+                  score()->undo(new Link(ce, const_cast<Element*>(e)));
             }
 
       _playEvents = n._playEvents;
@@ -810,6 +811,17 @@ SymId Note::noteHead() const
             }
       if (_headType != NoteHead::Type::HEAD_AUTO)
             ht = _headType;
+
+      if (_headGroup == NoteHead::Group::HEAD_CUSTOM) {
+            if (chord() && chord()->staff()) {
+                  if (chord()->staff()->staffType(chord()->tick())->isDrumStaff())
+                        return chord()->staff()->part()->instrument(chord()->tick())->drumset()->noteHeads(_pitch, ht);
+                  }
+            else {
+                  return _cachedNoteheadSym;
+                  }
+            }
+
       Key key = Key::C;
       NoteHeadScheme scheme = NoteHeadScheme::HEAD_NORMAL;
       if (chord() && chord()->staff()){
@@ -830,7 +842,28 @@ SymId Note::noteHead() const
 //---------------------------------------------------------
 //   headWidth
 //
-//    returns the width of the notehead symbol
+//    returns the x of the symbol bbox. It is different from headWidth() because zero point could be different from leftmost bbox position.
+//---------------------------------------------------------
+qreal Note::bboxRightPos() const
+      {
+      const auto& bbox = score()->scoreFont()->bbox(noteHead(), magS());
+      return bbox.right();
+      }
+
+//---------------------------------------------------------
+//   headBodyWidth
+//
+//    returns the width of the notehead "body". It is actual for slashed noteheads like -O-, where O is body.
+//---------------------------------------------------------
+qreal Note::headBodyWidth() const
+      {
+      return headWidth() + 2 * bboxXShift();
+      }
+
+//---------------------------------------------------------
+//   headWidth
+//
+//    returns the width of the symbol bbox
 //    or the width of the string representation of the fret mark
 //---------------------------------------------------------
 
@@ -839,6 +872,26 @@ qreal Note::headWidth() const
       return symWidth(noteHead());
       }
 
+//---------------------------------------------------------
+//   bboxXShift
+//
+//    returns the x shift of the notehead bounding box
+//---------------------------------------------------------
+qreal Note::bboxXShift() const
+      {
+      const auto& bbox = score()->scoreFont()->bbox(noteHead(), magS());
+      return bbox.bottomLeft().x();
+      }
+
+//---------------------------------------------------------
+//   noteheadCenterX
+//
+//    returns the x coordinate of the notehead center related to the basepoint of the notehead bbox
+//---------------------------------------------------------
+qreal Note::noteheadCenterX() const
+      {
+      return score()->scoreFont()->width(noteHead(), magS()) / 2 + bboxXShift();
+      }
 //---------------------------------------------------------
 //   tabHeadWidth
 //---------------------------------------------------------
@@ -1099,7 +1152,7 @@ void Note::draw(QPainter* painter) const
             // warn if pitch extends usable range of instrument
             // by coloring the notehead
             if (chord() && chord()->segment() && staff() && !selected()
-               && !score()->printing() && MScore::warnPitchRange) {
+               && !score()->printing() && MScore::warnPitchRange && !staff()->isDrumStaff(chord()->tick())) {
                   const Instrument* in = part()->instrument(chord()->tick());
                   int i = ppitch();
                   if (i < in->minPitchP() || i > in->maxPitchP())
@@ -1363,7 +1416,7 @@ bool Note::readProperties(XmlReader& e)
                   if (id != -1 &&
                               // DISABLE if pasting into a staff with linked staves
                               // because the glissando is not properly cloned into the linked staves
-                              (!e.pasteMode() || !staff()->linkedStaves() || staff()->linkedStaves()->empty())) {
+                              staff() && (!e.pasteMode() || !staff()->links() || staff()->links()->empty())) {
                         Spanner* placeholder = new TextLine(score());
                         placeholder->setAnchor(Spanner::Anchor::NOTE);
                         placeholder->setEndElement(this);
@@ -1399,7 +1452,7 @@ bool Note::readProperties(XmlReader& e)
             sp->read(e);
             // DISABLE pasting of glissandi into staves with other lionked staves
             // because the glissando is not properly cloned into the linked staves
-            if (e.pasteMode() && staff()->linkedStaves() && !staff()->linkedStaves()->empty()) {
+            if (e.pasteMode() && staff() && staff()->links() && !staff()->links()->empty()) {
                   e.removeSpanner(sp);    // read() added the element to the XMLReader: remove it
                   delete sp;
                   }
@@ -1973,7 +2026,6 @@ void Note::layout2()
       // so that the results are available there
 
       if (staff()->isTabStaff(chord()->tick())) {
-            adjustReadPos();
             StaffType* tab = staff()->staffType(tick());
             qreal mags = magS();
             bool paren = false;
@@ -2013,7 +2065,6 @@ void Note::layout2()
             qreal xx = x + d;
             for (NoteDot* dot : _dots) {
                   dot->rxpos() = xx;
-                  dot->adjustReadPos();
                   xx += dd;
                   }
             }
@@ -2026,7 +2077,7 @@ void Note::layout2()
             if (e->isSymbol()) {
                   qreal w = headWidth();
                   Symbol* sym = toSymbol(e);
-                  QPointF rp = e->readPos();
+//                  QPointF rp = e->readPos();
                   e->layout();
                   if (sym->sym() == SymId::noteheadParenthesisRight) {
                         if (staff()->isTabStaff(chord()->tick())) {
@@ -2038,14 +2089,11 @@ void Note::layout2()
                   else if (sym->sym() == SymId::noteheadParenthesisLeft) {
                         e->rxpos() -= symWidth(SymId::noteheadParenthesisLeft);
                         }
-                  if (sym->sym() == SymId::noteheadParenthesisLeft || sym->sym() == SymId::noteheadParenthesisRight) {
-                        // adjustReadPos() was called too early in layout(), adjust:
-                        if (!rp.isNull()) {
+/*                  if (sym->sym() == SymId::noteheadParenthesisLeft || sym->sym() == SymId::noteheadParenthesisRight) {
+                        if (!rp.isNull())
                               e->setUserOff(QPointF());
-                              e->setReadPos(rp);
-                              e->adjustReadPos();
-                              }
                         }
+ */
                   }
             else
                   e->layout();
@@ -2300,7 +2348,18 @@ void Note::setHeadGroup(NoteHead::Group val)
 
 int Note::ppitch() const
       {
-      return _pitch + staff()->pitchOffset(chord()->segment()->tick());
+      Chord* ch = chord();
+      // if staff is drum
+      // match tremolo and articulation between variants and chord
+      if (play() && ch && ch->staff() && ch->staff()->isDrumStaff(ch->tick())) {
+            const Drumset* ds = ch->staff()->part()->instrument(ch->tick())->drumset();
+            if (ds) {
+                  DrumInstrumentVariant div = ds->findVariant(_pitch, ch->articulations(), ch->tremolo());
+                  if (div.pitch != INVALID_PITCH)
+                        return div.pitch;
+                  }
+            }
+      return _pitch + staff()->pitchOffset(ch->segment()->tick());;
       }
 
 //---------------------------------------------------------
@@ -2376,7 +2435,7 @@ void Note::updateRelLine(int relLine, bool undoable)
       ClefType clef = staff->clef(chord()->tick());
       int line      = relStep(relLine, clef);
 
-      if (undoable && _line != INVALID_LINE)
+      if (undoable && (_line != INVALID_LINE) && (line != _line))
             undoChangeProperty(Pid::LINE, line);
       else
             setLine(line);
@@ -3124,6 +3183,36 @@ std::vector<Note*> Note::tiedNotes() const
       }
 
 //---------------------------------------------------------
+//   disconnectTiedNotes
+//---------------------------------------------------------
+
+void Note::disconnectTiedNotes()
+      {
+      if (tieBack() && tieBack()->startNote()) {
+            tieBack()->startNote()->remove(tieBack());
+            }
+      if (tieFor() && tieFor()->endNote()) {
+            tieFor()->endNote()->setTieBack(0);
+            }
+      }
+
+//---------------------------------------------------------
+//   connectTiedNotes
+//---------------------------------------------------------
+
+void Note::connectTiedNotes()
+      {
+      if (tieBack()) {
+            tieBack()->setEndNote(this);
+            if (tieBack()->startNote())
+                  tieBack()->startNote()->add(tieBack());
+            }
+      if (tieFor() && tieFor()->endNote()) {
+            tieFor()->endNote()->setTieBack(tieFor());
+            }
+      }
+
+//---------------------------------------------------------
 //   accidentalType
 //---------------------------------------------------------
 
@@ -3139,7 +3228,7 @@ AccidentalType Note::accidentalType() const
 void Note::setAccidentalType(AccidentalType type)
       {
       if (score())
-      	score()->changeAccidental(this, type);
+         score()->changeAccidental(this, type);
       }
 
 //---------------------------------------------------------
@@ -3162,6 +3251,17 @@ Shape Note::shape() const
             shape.add(_accidental->bbox().translated(_accidental->pos()));
 #endif
       return shape;
+      }
+
+//---------------------------------------------------------
+//   undoUnlink
+//---------------------------------------------------------
+
+void Note::undoUnlink()
+      {
+      Element::undoUnlink();
+      for (Element* e : _el)
+            e->undoUnlink();
       }
 
 }

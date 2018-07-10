@@ -66,12 +66,9 @@ bool LineSegment::readProperties(XmlReader& e)
                   setAutoplace(false);
             }
       else if (tag == "pos") {
-            qreal _spatium = score()->spatium();
             setUserOff(QPointF());
-            setReadPos(e.readPoint() * _spatium);
-            if (e.pasteMode())      // x position will be wrong
-                  setReadPos(QPointF());
             setAutoplace(false);
+            e.readNext();
             }
       else if (!SpannerSegment::readProperties(e)) {
             e.unknown();
@@ -491,6 +488,7 @@ SLine::SLine(Score* s, ElementFlags f)
    : Spanner(s, f)
       {
       setTrack(0);
+      _lineWidth = 0.15 * spatium();
       }
 
 SLine::SLine(const SLine& s)
@@ -533,7 +531,7 @@ QPointF SLine::linePos(Grip grip, System** sys) const
                         }
                   else {
                         cr = toChordRest(endElement());
-                        if (type() == ElementType::OTTAVA) {
+                        if (isOttava()) {
                               if (cr && cr->durationType() == TDuration::DurationType::V_MEASURE) {
                                     x = cr->x() + cr->width() + sp;
                                     }
@@ -562,7 +560,7 @@ QPointF SLine::linePos(Grip grip, System** sys) const
                                           ns = ns->next();
                                           }
                                     if (crFound) {
-                                          qreal nextNoteDistance = ns->x() - s->x() + lineWidth().val() * sp;
+                                          qreal nextNoteDistance = ns->x() - s->x() + lineWidth();
                                           if (x > nextNoteDistance)
                                                 x = qMax(width, nextNoteDistance);
                                           }
@@ -580,23 +578,33 @@ QPointF SLine::linePos(Grip grip, System** sys) const
                                           cr = toChordRest(e);
                                     }
                               // layout to right edge of CR
+                              // if next segment is not a chord with lyrics which spans to the left
                               if (cr) {
-                                    qreal maxRight = 0.0;
-                                    if (cr->type() == ElementType::CHORD) {
-                                          // chord bbox() is unreliable, look at notes
-                                          // this also allows us to more easily ignore ledger lines
-                                          for (Note* n : toChord(cr)->notes())
-                                                maxRight = qMax(maxRight, cr->x() + n->x() + n->headWidth());
+                                    bool extendToRight = true;
+                                    Segment* seg = cr->segment();
+                                    seg = seg->next(SegmentType::ChordRest);
+                                    if (seg) {
+                                          ChordRest* cr2 = seg->cr(cr->track());
+                                          if (cr2 && !cr2->lyrics().empty())
+                                                extendToRight = false;
                                           }
-                                    else {
-                                          // rest - won't normally happen
-                                          maxRight = cr->x() + cr->width();
+                                    if (extendToRight) {
+                                          qreal maxRight = 0.0;
+                                          if (cr->isChord()) {
+                                                // chord bbox() is unreliable, look at notes
+                                                // this also allows us to more easily ignore ledger lines
+                                                for (Note* n : toChord(cr)->notes())
+                                                      maxRight = qMax(maxRight, cr->x() + n->x() + n->bboxRightPos());
+                                                }
+                                          else {
+                                                // rest - won't normally happen
+                                                maxRight = cr->x() + cr->width();
+                                                }
+                                          x = maxRight; // cr->width()
                                           }
-                                    x = maxRight; // cr->width()
                                     }
                              }
-                        else if (type() == ElementType::HAIRPIN || type() == ElementType::TRILL || type() == ElementType::VIBRATO
-                                    || type() == ElementType::TEXTLINE || type() == ElementType::LYRICSLINE) {
+                        else if (isHairpin() || isTrill() || isVibrato() || isTextLine() || isLyricsLine()) {
                               // (for LYRICSLINE, this is hyphen; melisma line is handled above)
                               // lay out to just before next chordrest on this staff, or barline
                               // tick2 actually tells us the right chordrest to look for
@@ -718,14 +726,14 @@ QPointF SLine::linePos(Grip grip, System** sys) const
                   }
                   break;
 
-            case Spanner::Anchor::NOTE:
-                  {
+            case Spanner::Anchor::NOTE: {
                   Element* e = grip == Grip::START ? startElement() : endElement();
                   if (!e)
                         return QPointF();
                   System* s = toNote(e)->chord()->segment()->system();
                   if (s == 0) {
-                        qFatal("no system: %s  start %s chord parent %s\n", name(), e->name(), toNote(e)->chord()->parent()->name());
+                        qDebug("no system: %s  start %s chord parent %s\n", name(), e->name(), toNote(e)->chord()->parent()->name());
+                        return QPointF();
                         }
                   *sys = s;
                   // return the position of the anchor note relative to the system
@@ -1006,7 +1014,6 @@ void SLine::layout()
                   }
             lineSegm->layout();
             }
-      adjustReadPos();
       }
 
 //---------------------------------------------------------
@@ -1088,14 +1095,7 @@ bool SLine::readProperties(XmlReader& e)
             ls->setTrack(track()); // needed in read to get the right staff mag
             ls->read(e);
             add(ls);
-            // in v1.x "visible" is a property of the segment only;
-            // we must ensure that it propagates also to the parent element.
-            // That's why the visibility is set after adding the segment
-            // to the corresponding spanner
-            if (score()->mscVersion() <= 114)
-                  ls->setVisible(ls->visible());
-            else
-                  ls->setVisible(visible());
+            ls->setVisible(visible());
             }
       else if (tag == "length")
             setLen(e.readDouble());
@@ -1104,7 +1104,7 @@ bool SLine::readProperties(XmlReader& e)
       else if (tag == "anchor")
             setAnchor(Anchor(e.readInt()));
       else if (tag == "lineWidth")
-            _lineWidth = Spatium(e.readDouble());
+            _lineWidth = e.readDouble() * spatium();
       else if (tag == "lineStyle")
             _lineStyle = Qt::PenStyle(e.readInt());
       else if (tag == "dashLineLength")
@@ -1213,7 +1213,7 @@ bool SLine::setProperty(Pid id, const QVariant& v)
                   _lineColor = v.value<QColor>();
                   break;
             case Pid::LINE_WIDTH:
-                  _lineWidth = v.value<Spatium>();
+                  _lineWidth = v.toReal();
                   break;
             case Pid::LINE_STYLE:
                   _lineStyle = Qt::PenStyle(v.toInt());
@@ -1243,7 +1243,7 @@ QVariant SLine::propertyDefault(Pid id) const
             case Pid::LINE_COLOR:
                   return MScore::defaultColor;
             case Pid::LINE_WIDTH:
-                  return Spatium(0.15);
+                  return 0.15 * spatium();
             case Pid::LINE_STYLE:
                   return int(Qt::SolidLine);
             case Pid::DASH_LINE_LEN:

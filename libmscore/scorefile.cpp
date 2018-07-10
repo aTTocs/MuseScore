@@ -55,6 +55,8 @@
 
 namespace Ms {
 
+bool __loadScore = false;
+
 //---------------------------------------------------------
 //   writeMeasure
 //---------------------------------------------------------
@@ -779,7 +781,7 @@ Score::FileError MasterScore::loadCompressedMsc(QIODevice* io, bool ignoreVersio
 
       QByteArray dbuf = uz.fileData(rootfile);
       if (dbuf.isEmpty()) {
-            QList<MQZipReader::FileInfo> fil = uz.fileInfoList();
+            QVector<MQZipReader::FileInfo> fil = uz.fileInfoList();
             foreach(const MQZipReader::FileInfo& fi, fil) {
                   if (fi.filePath.endsWith(".mscx")) {
                         dbuf = uz.fileData(fi.filePath);

@@ -77,6 +77,7 @@ class Ambitus;
 class Bracket;
 class InstrumentChange;
 class Text;
+class TextBase;
 class Hairpin;
 class HairpinSegment;
 class Bend;
@@ -128,6 +129,8 @@ class Vibrato;
 class VibratoSegment;
 class PalmMute;
 class PalmMuteSegment;
+
+class StaffTextBase;
 
 enum class Pid : int;
 enum class PropertyFlags : char;
@@ -223,9 +226,12 @@ class ScoreElement {
 
       void linkTo(ScoreElement*);
       void unlink();
+      bool isLinked(ScoreElement*);
+
       virtual void undoUnlink();
       int lid() const                         { return _links ? _links->lid() : 0; }
-      const LinkedElements* links() const     { return _links;      }
+//      const LinkedElements* links() const     { return _links;      }
+      LinkedElements* links() const           { return _links;      }
       void setLinks(LinkedElements* le)       { _links = le;        }
 
       //---------------------------------------------------
@@ -324,6 +330,7 @@ class ScoreElement {
       CONVERT(ChordLine,     CHORDLINE)
       CONVERT(FretDiagram,   FRET_DIAGRAM)
       CONVERT(Page,          PAGE)
+      CONVERT(Text,          TEXT)
       CONVERT(StaffText,     STAFF_TEXT)
       CONVERT(SystemText,    SYSTEM_TEXT)
       CONVERT(BracketItem,   BRACKET_ITEM)
@@ -337,7 +344,7 @@ class ScoreElement {
       bool isSLineSegment() const;
       bool isBox() const { return isVBox() || isHBox() || isTBox() || isFBox(); }
       bool isMeasureBase() const { return isMeasure() || isBox(); }
-      bool isText() const;
+      bool isTextBase() const;
       bool isTextLineBaseSegment() const {
          return isHairpinSegment()
          || isLetRingSegment()
@@ -382,6 +389,9 @@ class ScoreElement {
          || isSLine()
          ;
          }
+      bool isStaffTextBase() const {
+            return isStaffText() || isSystemText();
+            }
       };
 
 //---------------------------------------------------
@@ -451,6 +461,14 @@ static inline BSymbol* toBSymbol(ScoreElement* e) {
 static inline TextLineBase* toTextLineBase(ScoreElement* e) {
       Q_ASSERT(e == 0 || e->isTextLineBase());
       return (TextLineBase*)e;
+      }
+static inline TextBase* toTextBase(ScoreElement* e) {
+      Q_ASSERT(e == 0 || e->isTextBase());
+      return (TextBase*)e;
+      }
+static inline StaffTextBase* toStaffTextBase(ScoreElement* e) {
+      Q_ASSERT(e == 0 || e->isStaffTextBase());
+      return (StaffTextBase*)e;
       }
 
 #define CONVERT(a)  \

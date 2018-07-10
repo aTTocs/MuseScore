@@ -1365,10 +1365,20 @@ void Score::cmdFlip()
                   Hairpin* h = toHairpinSegment(e)->hairpin();
                   HairpinType st = h->hairpinType();
                   switch (st)  {
-                        case HairpinType::CRESC_HAIRPIN:     st = HairpinType::DECRESC_HAIRPIN; break;
-                        case HairpinType::DECRESC_HAIRPIN:   st = HairpinType::CRESC_HAIRPIN; break;
-                        case HairpinType::CRESC_LINE:        st = HairpinType::DECRESC_LINE; break;
-                        case HairpinType::DECRESC_LINE:      st = HairpinType::CRESC_LINE; break;
+                        case HairpinType::CRESC_HAIRPIN:
+                              st = HairpinType::DECRESC_HAIRPIN;
+                              break;
+                        case HairpinType::DECRESC_HAIRPIN:
+                              st = HairpinType::CRESC_HAIRPIN;
+                              break;
+                        case HairpinType::CRESC_LINE:
+                              st = HairpinType::DECRESC_LINE;
+                              break;
+                        case HairpinType::DECRESC_LINE:
+                              st = HairpinType::CRESC_LINE;
+                              break;
+                        case HairpinType::INVALID:
+                              break;
                         }
                   h->undoChangeProperty(Pid::HAIRPIN_TYPE, int(st));
                   }
@@ -1436,6 +1446,8 @@ void Score::cmdFlip()
 void Score::deleteItem(Element* el)
       {
       if (!el)
+            return;
+      if (el->generated() && !el->isBracket())          // cannot remove generated elements
             return;
 //      qDebug("%s", el->name());
 
@@ -2895,6 +2907,8 @@ void Score::timeDelete(Measure* m, Segment* startSegment, const Fraction& f)
       int len   = f.ticks();
       int etick = tick + len;
 
+//      printf("time delete %d at %d, start %s\n", len, tick, startSegment->subTypeName());
+
       Segment* fs = m->first(CR_TYPE);
 
       for (int track = 0; track < _staves.size() * VOICES; ++track) {
@@ -2941,8 +2955,14 @@ void Score::timeDelete(Measure* m, Segment* startSegment, const Fraction& f)
             }
       undoInsertTime(tick, -len);
       undo(new InsertTime(this, tick, -len));
-      for (Segment* s = startSegment->next(); s; s = s->next())
+
+      for (Segment* s = startSegment->next(); s; s = s->next()) {
+            if (s->isTimeSigType() || s->isKeySigType())
+                  continue;
+//            printf("   change segment %s tick %d -> %d\n", s->subTypeName(), s->tick(), s->tick() - len),
             s->undoChangeProperty(Pid::TICK, s->rtick() - len);
+            }
+
       undo(new ChangeMeasureLen(m, m->len() - f));
       }
 
@@ -3846,15 +3866,6 @@ void Score::undoAddElement(Element* element)
                   }
             if (links == 0) {
                   undo(new AddElement(element));
-#ifndef QT_NO_DEBUG
-                  if (element->isChord()) {
-                        for (Note* n : toChord(element)->notes()) {
-                        //      if(n->tpc() == Tpc::TPC_INVALID)
-                        //            n->setTpcFromPitch();
-                              Q_ASSERT(n->tpc() != Tpc::TPC_INVALID);
-                              }
-                        }
-#endif
                   return;
                   }
             for (ScoreElement* ee : *links) {
@@ -3885,14 +3896,6 @@ void Score::undoAddElement(Element* element)
                   ne->setSelected(false);
                   ne->setParent(e);
                   undo(new AddElement(ne));
-#ifndef QT_NO_DEBUG
-                  if (ne->isChord()) {
-                        for (Note* n : toChord(ne)->notes()) {
-                              Q_ASSERT(n->tpc() != Tpc::TPC_INVALID);
-                        //      n->setTpcFromPitch();
-                              }
-                        }
-#endif
                   }
             return;
             }
@@ -4403,10 +4406,17 @@ void Score::undoRemoveElement(Element* element)
                   if (!segments.contains(s))
                         segments.append(s);
                   }
+            if (e->parent() && e->parent()->isSystem()) {
+                  e->setParent(0); // systems will be regenerated upon redo, so detach
+                  }
             }
       for (Segment* s : segments) {
-            if (s->empty())
-                  undo(new RemoveElement(s));
+            if (s->empty()) {
+                  if (s->header() || s->trailer())    // probably more segment types (system header)
+                        s->setEnabled(false);
+                  else
+                        undo(new RemoveElement(s));
+                  }
             }
       }
 

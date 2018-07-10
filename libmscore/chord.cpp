@@ -215,14 +215,13 @@ Chord::Chord(Score* s)
       _playEventType    = PlayEventType::Auto;
       _crossMeasure     = CrossMeasure::UNKNOWN;
       _graceIndex   = 0;
-      setFlags(ElementFlag::MOVABLE | ElementFlag::ON_STAFF);
       }
 
 Chord::Chord(const Chord& c, bool link)
    : ChordRest(c, link)
       {
       if (link)
-            score()->undo(new Link(const_cast<Chord*>(&c), this));
+            score()->undo(new Link(this, const_cast<Chord*>(&c)));
       _ledgerLines = 0;
 
       for (Note* onote : c._notes) {
@@ -265,12 +264,12 @@ Chord::Chord(const Chord& c, bool link)
             Arpeggio* a = new Arpeggio(*(c._arpeggio));
             add(a);
             if (link)
-                  score()->undo(new Link(const_cast<Arpeggio*>(c._arpeggio), a));
+                  score()->undo(new Link(a, const_cast<Arpeggio*>(c._arpeggio)));
             }
       if (c._tremolo) {
             Tremolo* t = new Tremolo(*(c._tremolo));
             if (link) {
-                  score()->undo(new Link(const_cast<Tremolo*>(c._tremolo), t));
+                  score()->undo(new Link(t, const_cast<Tremolo*>(c._tremolo)));
                   if (c._tremolo->twoNotes())
                         t->setChords(0, 0);
                   }
@@ -353,7 +352,7 @@ qreal Chord::noteHeadWidth() const
 
 //---------------------------------------------------------
 //   stemPosX
-//    return Chord coordinates
+//    return Chord coordinates. Based on nominal notehead
 //---------------------------------------------------------
 
 qreal Chord::stemPosX() const
@@ -378,7 +377,7 @@ QPointF Chord::stemPos() const
             return st->chordStemPos(this) * spatium() + p;
 
       if (_up) {
-            qreal nhw = _notes.size() == 1 ? downNote()->headWidth() : noteHeadWidth();
+            qreal nhw = _notes.size() == 1 ? downNote()->bboxRightPos() : noteHeadWidth();
             p.rx() += nhw;
             p.ry() += downNote()->pos().y();
             }
@@ -444,10 +443,7 @@ void Chord::add(Element* e)
                         }
                   if (!found)
                         _notes.push_back(note);
-                  if (note->tieFor()) {
-                        if (note->tieFor()->endNote())
-                              note->tieFor()->endNote()->setTieBack(note->tieFor());
-                        }
+                  note->connectTiedNotes();
                   if (voice() && measure() && note->visible())
                         measure()->setHasVoices(staffIdx(), true);
                   }
@@ -497,7 +493,7 @@ void Chord::add(Element* e)
                   Chord* gc = toChord(e);
                   Q_ASSERT(gc->noteType() != NoteType::NORMAL);
                   int idx = gc->graceIndex();
-                  gc->setFlags(ElementFlag::MOVABLE);
+                  gc->setFlag(ElementFlag::MOVABLE, true);
                   _graceNotes.insert(_graceNotes.begin() + idx, gc);
                   }
                   break;
@@ -529,10 +525,7 @@ void Chord::remove(Element* e)
                   auto i = std::find(_notes.begin(), _notes.end(), note);
                   if (i != _notes.end()) {
                         _notes.erase(i);
-                        if (note->tieFor()) {
-                              if (note->tieFor()->endNote())
-                                    note->tieFor()->endNote()->setTieBack(0);
-                              }
+                        note->disconnectTiedNotes();
                         for (Spanner* s : note->spannerBack())
                               note->removeSpannerBack(s);
                         for (Spanner* s : note->spannerFor())
@@ -709,7 +702,9 @@ void Chord::addLedgerLines()
                   // check if note horiz. pos. is outside current range
                   // if more length on the right, increase range
 //                  note->layout();
-                  x = note->pos().x();
+
+                  //ledger lines need the leftmost point of the notehead with a respect of bbox
+                  x = note->pos().x() + note->bboxXShift();
                   if (x - extraLen < minX) {
                         minX  = x - extraLen;
                         // increase width of all lines between this one and the staff
@@ -1126,9 +1121,9 @@ qreal Chord::centerX() const
             return staff()->staffType(tick())->chordStemPosX(this) * spatium();
 
       const Note* note = up() ? upNote() : downNote();
-      qreal x = note->pos().x() + note->headWidth() * .5;
+      qreal x = note->pos().x() + note->noteheadCenterX();
       if (note->mirror())
-            x += note->headWidth() * (up() ? -1.0 : 1.0);
+                  x += (note->headBodyWidth()) * (up() ? -1.0 : 1.0);
       return x;
       }
 
@@ -1355,7 +1350,7 @@ qreal Chord::defaultStemLength()
 void Chord::layoutStem1()
       {
       StaffType* st = staff() ? staff()->staffType(tick()) : 0;
-      if (durationType().hasStem() && !(_noStem || measure()->slashStyle(staffIdx()) || (st && st->isTabStaff() && st->slashStyle()))) {
+      if (durationType().hasStem() && !(_noStem || (measure() && measure()->slashStyle(staffIdx())) || (st && st->isTabStaff() && st->slashStyle()))) {
             if (!_stem) {
                   Stem* stem = new Stem(score());
                   stem->setParent(this);
@@ -1447,7 +1442,6 @@ void Chord::layoutStem()
                                     p.rx() -= _stem->width();
                                     }
                               _hook->setPos(p);
-                              _hook->adjustReadPos();
 #endif
                               }
                         }
@@ -1472,7 +1466,6 @@ void Chord::layoutStem()
                         p.rx() -= _stem->width();
                         }
                   _hook->setPos(p);
-                  _hook->adjustReadPos();
                   }
             if (_stemSlash)
                   _stemSlash->layout();
@@ -1789,7 +1782,11 @@ void Chord::layoutPitched()
                   note->setPos(x, y);
                   }
             computeUp();
-            layoutStem();
+            layoutStem1();
+            if (_stem) { //false when dragging notes from drum palette
+                  qreal stemWidth5 = _stem->lineWidth() * .5;
+                  _stem->rxpos()   = up() ? (upNote()->headBodyWidth() - stemWidth5) : stemWidth5;
+                  }
             addLedgerLines();
             return;
             }
@@ -1836,10 +1833,10 @@ void Chord::layoutPitched()
                               if (sc->width() > sn->width()) {
                                     // chord with second?
                                     // account for noteheads further to right
-                                    qreal snEnd = sn->x() + sn->headWidth();
+                                    qreal snEnd = sn->x() + sn->bboxRightPos();
                                     qreal scEnd = snEnd;
                                     for (unsigned i = 0; i < sc->notes().size(); ++i)
-                                          scEnd = qMax(scEnd, sc->notes().at(i)->x() + sc->notes().at(i)->headWidth());
+                                          scEnd = qMax(scEnd, sc->notes().at(i)->x() + sc->notes().at(i)->bboxRightPos());
                                     overlap += scEnd - snEnd;
                                     }
                               else
@@ -1881,7 +1878,6 @@ void Chord::layoutPitched()
             lll        += _arpeggio->width() + arpeggioDistance + chordX;
             qreal y1   = upnote->pos().y() - upnote->headHeight() * .5;
             _arpeggio->setPos(-lll, y1);
-            _arpeggio->adjustReadPos();
             // _arpeggio->layout() called in layoutArpeggio2()
 
             // handle the special case of _arpeggio->span() > 1
@@ -2312,7 +2308,6 @@ void Chord::layoutTablature()
             qreal h = downNote()->pos().y() + downNote()->headHeight() - y;
             _arpeggio->setHeight(h);
             _arpeggio->setPos(-lll, y);
-            _arpeggio->adjustReadPos();
 
             // handle the special case of _arpeggio->span() > 1
             // in layoutArpeggio2() after page layout has done so we
@@ -3288,7 +3283,7 @@ void Chord::layoutArticulations()
                         else
                               y += _spatium;
                         if (_up)
-                              x = downNote()->headWidth() - stem()->width() * .5;
+                              x = downNote()->bboxRightPos() - stem()->width() * .5;
                         else
                               x = stem()->width() * .5;
                         }
@@ -3315,7 +3310,7 @@ void Chord::layoutArticulations()
                         else
                               y -= _spatium;
                         if (_up)
-                              x = downNote()->headWidth() - stem()->width() * .5;
+                              x = downNote()->bboxRightPos() - stem()->width() * .5;
                         else
                               x = stem()->width() * .5;
                         }

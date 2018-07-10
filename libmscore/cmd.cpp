@@ -250,6 +250,8 @@ void Score::update()
                   }
             cs.reset();
             }
+      if (_selection.isRange())
+            _selection.updateSelectedElements();
       }
 
 //---------------------------------------------------------
@@ -2951,7 +2953,7 @@ void Score::cmdPitchUp()
       Element* el = selection().element();
       if (el && el->isLyrics())
             cmdMoveLyrics(toLyrics(el), Direction::UP);
-      else if (el && (el->isArticulation() || el->isText()))
+      else if (el && (el->isArticulation() || el->isTextBase()))
             el->undoChangeProperty(Pid::USER_OFF, el->userOff() + QPointF(0.0, -MScore::nudgeStep * el->spatium()));
       else if (el && el->isRest())
             cmdMoveRest(toRest(el), Direction::UP);
@@ -2968,7 +2970,7 @@ void Score::cmdPitchDown()
       Element* el = selection().element();
       if (el && el->isLyrics())
             cmdMoveLyrics(toLyrics(el), Direction::DOWN);
-      else if (el && (el->isArticulation() || el->isText()))
+      else if (el && (el->isArticulation() || el->isTextBase()))
             el->undoChangeProperty(Pid::USER_OFF, el->userOff() + QPointF(0.0, MScore::nudgeStep * el->spatium()));
       else if (el && el->isRest())
             cmdMoveRest(toRest(el), Direction::DOWN);
@@ -3002,7 +3004,7 @@ void Score::cmdTimeDelete()
 void Score::cmdPitchUpOctave()
       {
       Element* el = selection().element();
-      if (el && (el->isArticulation() || el->isText()))
+      if (el && (el->isArticulation() || el->isTextBase()))
             el->undoChangeProperty(Pid::USER_OFF, el->userOff() + QPointF(0.0, -MScore::nudgeStep10 * el->spatium()));
       else
             upDown(true, UpDownMode::OCTAVE);
@@ -3015,7 +3017,7 @@ void Score::cmdPitchUpOctave()
 void Score::cmdPitchDownOctave()
       {
       Element* el = selection().element();
-      if (el && (el->isArticulation() || el->isText()))
+      if (el && (el->isArticulation() || el->isTextBase()))
             el->undoChangeProperty(Pid::USER_OFF, el->userOff() + QPointF(0.0, MScore::nudgeStep10 * el->spatium()));
       else
             upDown(false, UpDownMode::OCTAVE);
@@ -3154,7 +3156,7 @@ void Score::cmdPadNoteDecreaseTAB()
 void Score::cmdToggleLayoutBreak(LayoutBreak::Type type)
       {
       // find measure(s)
-      QList<Measure*> ml;
+      QList<MeasureBase*> mbl;
       if (selection().isRange()) {
             Measure* startMeasure = nullptr;
             Measure* endMeasure = nullptr;
@@ -3164,33 +3166,68 @@ void Score::cmdToggleLayoutBreak(LayoutBreak::Type type)
                   return;
 #if 1
             // toggle break on the last measure of the range
-            ml.append(endMeasure);
+            mbl.append(endMeasure);
             // if more than one measure selected,
             // also toggle break *before* the range (to try to fit selection on a single line)
-            if (startMeasure != endMeasure && startMeasure->prevMeasure())
-                  ml.append(startMeasure->prevMeasure());
+            if (startMeasure != endMeasure && startMeasure->prev())
+                  mbl.append(startMeasure->prev());
 #else
             // toggle breaks throughout the selection
             for (Measure* m = startMeasure; m; m = m->nextMeasure()) {
-                  ml.append(m);
+                  mbl.append(m);
                   if (m == endMeasure)
                         break;
                   }
 #endif
             }
       else {
+            MeasureBase* mb = nullptr;
             for (Element* el : selection().elements()) {
-                  Measure* measure = toMeasure(el->findMeasure());
-                  if (measure)
-                        ml.append(measure);
+                  switch (el->type()) {
+                        case ElementType::HBOX:
+                        case ElementType::VBOX:
+                        case ElementType::TBOX:
+                              mb = toMeasureBase(el);
+                              break;
+                        default: {
+                              // find measure
+                              Measure* measure = toMeasure(el->findMeasure());
+                              // if measure is mmrest, then propagate to last original measure
+                              if (measure)
+                                    mb = measure->isMMRest() ? measure->mmRestLast() : measure;
+                              }
+                        }
                   }
+                  if (mb)
+                        mbl.append(mb);
             }
       // toggle the breaks
-      for (Measure* measure : ml) {
-            // if measure is mm rest, then propagate to last original measure
-            measure = measure->isMMRest() ? measure->mmRestLast() : measure;
-            if (measure)
-                  measure->undoSetBreak(!measure->lineBreak(), type);
+      for (MeasureBase* mb: mbl) {
+            if (mb) {
+                  bool val = false;
+                  switch (type) {
+                        case LayoutBreak::Type::LINE:
+                              val = !mb->lineBreak();
+                              mb->undoSetBreak(val, type);
+                              // remove page break if appropriate
+                              if (val && mb->pageBreak())
+                                    mb->undoSetBreak(false, LayoutBreak::Type::PAGE);
+                              break;
+                        case LayoutBreak::Type::PAGE:
+                              val = !mb->pageBreak();
+                              mb->undoSetBreak(val, type);
+                              // remove line break if appropriate
+                              if (val && mb->lineBreak())
+                                    mb->undoSetBreak(false, LayoutBreak::Type::LINE);
+                              break;
+                        case LayoutBreak::Type::SECTION:
+                              val = !mb->sectionBreak();
+                              mb->undoSetBreak(val, type);
+                              break;
+                        default:
+                              break;
+                        }
+                  }
             }
       }
 

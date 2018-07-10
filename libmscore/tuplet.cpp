@@ -31,8 +31,9 @@ namespace Ms {
 //---------------------------------------------------------
 
 Tuplet::Tuplet(Score* s)
-  : DurationElement(s, ElementFlag::MOVABLE | ElementFlag::SELECTABLE)
+  : DurationElement(s)
       {
+      _tick         = 0;
       _ratio        = Fraction(1, 1);
       _number       = 0;
       _hasBracket   = false;
@@ -59,8 +60,8 @@ Tuplet::Tuplet(const Tuplet& t)
       _p1            = t._p1;
       _p2            = t._p2;
 
-     // recreated on layout
-     _number = 0;
+      // recreated on layout
+      _number = 0;
       }
 
 //---------------------------------------------------------
@@ -115,9 +116,12 @@ void Tuplet::layout()
       if (_numberType != TupletNumberType::NO_TEXT) {
             if (_number == 0) {
                   _number = new Text(score());
+                  _number->setComposition(true);
                   _number->setTrack(track());
                   _number->setParent(this);
                   _number->setVisible(visible());
+                  for (auto p : { Pid::FONT_FACE, Pid::FONT_SIZE, Pid::FONT_BOLD, Pid::FONT_ITALIC, Pid::FONT_UNDERLINE, Pid::ALIGN })
+                        _number->resetProperty(p);
                   }
             if (_numberType == TupletNumberType::SHOW_NUMBER)
                   _number->setXmlText(QString("%1").arg(_ratio.numerator()));
@@ -488,6 +492,7 @@ void Tuplet::layout()
       if (_number) {
             _number->layout();
             numberWidth = _number->bbox().width();
+
             //
             // for beamed tuplets, center number on beam
             //
@@ -595,7 +600,7 @@ void Tuplet::draw(QPainter* painter) const
             painter->translate(-pos);
             }
       if (_hasBracket) {
-            painter->setPen(QPen(color, spatium() * _bracketWidth.val()));
+            painter->setPen(QPen(color, _bracketWidth.val()));
             if (!_number)
                   painter->drawPolyline(bracketL, 4);
             else {
@@ -634,7 +639,7 @@ Shape Tuplet::shape() const
       {
       Shape s;
       if (_hasBracket) {
-            qreal w = spatium() * _bracketWidth.val();
+            qreal w = _bracketWidth.val();
             if (_number) {
                   s.add(Rect(bracketL[0], bracketL[1], w));
                   s.add(Rect(bracketL[1], bracketL[2], w));
@@ -690,8 +695,6 @@ void Tuplet::write(XmlWriter& xml) const
             _number->writeProperties(xml);
             xml.etag();
             }
-      if (!userOff().isNull())
-            xml.tag("offset", userOff() / spatium());
       xml.etag();
       }
 
@@ -701,7 +704,7 @@ void Tuplet::write(XmlWriter& xml) const
 
 void Tuplet::read(XmlReader& e)
       {
-      _id    = e.intAttribute("id", 0);
+      _id = e.intAttribute("id", 0);
       while (e.readNextStartElement()) {
             if (readProperties(e))
                   ;
@@ -719,6 +722,7 @@ void Tuplet::read(XmlReader& e)
 bool Tuplet::readProperties(XmlReader& e)
       {
       const QStringRef& tag(e.name());
+
       if (readStyledProperty(e, tag))
             ;
       else if (tag == "normalNotes")
@@ -726,18 +730,22 @@ bool Tuplet::readProperties(XmlReader& e)
       else if (tag == "actualNotes")
             _ratio.setNumerator(e.readInt());
       else if (tag == "p1")
-            _p1 = e.readPoint();
+            _p1 = e.readPoint() * score()->spatium();
       else if (tag == "p2")
-            _p2 = e.readPoint();
+            _p2 = e.readPoint() * score()->spatium();
       else if (tag == "baseNote")
             _baseLen = TDuration(e.readElementText());
       else if (tag == "Number") {
             _number = new Text(score());
+            _number->setComposition(true);
             _number->setParent(this);
+            // _number reads property defaults from parent tuplet as "composition" is set:
+            for (auto p : { Pid::FONT_FACE, Pid::FONT_SIZE, Pid::FONT_BOLD, Pid::FONT_ITALIC, Pid::FONT_UNDERLINE, Pid::ALIGN })
+                  _number->resetProperty(p);
             _number->read(e);
             _number->setVisible(visible());     //?? override saved property
             _number->setTrack(track());
-            // move property flags from _number
+            // move property flags from _number back to tuplet
             for (auto p : { Pid::FONT_FACE, Pid::FONT_SIZE, Pid::FONT_BOLD, Pid::FONT_ITALIC, Pid::FONT_UNDERLINE, Pid::ALIGN })
                   setPropertyFlags(p, _number->propertyFlags(p));
             }

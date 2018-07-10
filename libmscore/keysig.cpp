@@ -17,6 +17,7 @@
 #include "measure.h"
 #include "segment.h"
 #include "score.h"
+#include "system.h"
 #include "undo.h"
 #include "xml.h"
 
@@ -46,9 +47,8 @@ const char* keyNames[] = {
 //---------------------------------------------------------
 
 KeySig::KeySig(Score* s)
-  : Element(s)
+  : Element(s, ElementFlag::ON_STAFF)
       {
-      setFlags(ElementFlag::SELECTABLE | ElementFlag::ON_STAFF);
       _showCourtesy = true;
       _hideNaturals = false;
       }
@@ -140,7 +140,8 @@ void KeySig::layout()
 
 
       // Don't repeat naturals if shown in courtesy
-      if (prevMeasure && prevMeasure->findSegment(SegmentType::KeySigAnnounce, segment()->tick())
+      if (measure() && measure()->system() && measure() == measure()->system()->firstMeasure()
+          && prevMeasure && prevMeasure->findSegment(SegmentType::KeySigAnnounce, segment()->tick())
           && !segment()->isKeySigAnnounceType())
             naturalsOn = false;
       if (track() == -1)

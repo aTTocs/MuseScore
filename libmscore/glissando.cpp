@@ -52,9 +52,8 @@ void GlissandoSegment::layout()
       if (staff())
             setMag(staff()->mag(tick()));
       QRectF r = QRectF(0.0, 0.0, pos2().x(), pos2().y()).normalized();
-      qreal lw = spatium() * glissando()->lineWidth().val() * .5;
+      qreal lw = glissando()->lineWidth() * .5;
       setbbox(r.adjusted(-lw, -lw, lw, lw));
-      adjustReadPos();
       }
 
 //---------------------------------------------------------
@@ -67,7 +66,7 @@ void GlissandoSegment::draw(QPainter* painter) const
       qreal _spatium = spatium();
 
       QPen pen(glissando()->curColor());
-      pen.setWidthF(glissando()->lineWidth().val() * spatium());
+      pen.setWidthF(glissando()->lineWidth());
       pen.setCapStyle(Qt::RoundCap);
       painter->setPen(pen);
 
@@ -259,7 +258,7 @@ Sid GlissandoSegment::getPropertyStyle(Pid id) const
 //=========================================================
 
 Glissando::Glissando(Score* s)
-  : SLine(s, ElementFlag::MOVABLE | ElementFlag::SELECTABLE)
+  : SLine(s, ElementFlag::MOVABLE)
       {
       setAnchor(Spanner::Anchor::NOTE);
       setDiagonal(true);
@@ -295,7 +294,7 @@ Glissando::Glissando(const Glissando& g)
 LineSegment* Glissando::createLineSegment()
       {
       GlissandoSegment* seg = new GlissandoSegment(score());
-      seg->setFlag(ElementFlag::ON_STAFF, false);
+//      seg->setFlag(ElementFlag::ON_STAFF, false);
       seg->setTrack(track());
       seg->setColor(color());
       return seg;
@@ -332,10 +331,12 @@ void Glissando::layout()
             s->layout();
             return;
             }
-
+      if (spannerSegments().empty()) {
+            qDebug("no segments");
+            return;
+            }
       SLine::layout();
       setPos(0.0, 0.0);
-      adjustReadPos();
 
       Note*       anchor1     = toNote(startElement());
       Note*       anchor2     = toNote(endElement());
@@ -458,7 +459,7 @@ void Glissando::layout()
       QPointF system2PagePos = cr2->segment()->system()->pagePos();
       QPointF anchor2SystPos = anchor2PagePos - system2PagePos;
       QRectF r = QRectF(anchor2SystPos - segm2->pos(), anchor2SystPos - segm2->pos() - segm2->pos2()).normalized();
-      qreal lw = _spatium * lineWidth().val() * .5;
+      qreal lw = lineWidth() * .5;
       setbbox(r.adjusted(-lw, -lw, lw, lw));
       }
 
@@ -782,10 +783,6 @@ bool Glissando::setProperty(Pid propertyId, const QVariant& v)
 
 QVariant Glissando::propertyDefault(Pid propertyId) const
       {
-      Sid si = getPropertyStyle(propertyId);
-      if (si != Sid::NOSTYLE)
-            return score()->styleV(si);
-
       switch (propertyId) {
             case Pid::GLISS_TYPE:
                   return int(GlissandoType::STRAIGHT);

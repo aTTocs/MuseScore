@@ -32,7 +32,7 @@ static bool defaultSizeIsSpatium    = true;
 //---------------------------------------------------------
 
 Image::Image(Score* s)
-   : BSymbol(s)
+   : BSymbol(s, ElementFlag::NOTHING)
       {
       imageType        = ImageType::NONE;
       rasterDoc        = 0;
@@ -484,7 +484,6 @@ void Image::layout()
             }
 
       // in any case, adjust position relative to parent
-      adjustReadPos();
       setbbox(QRectF(QPointF(), size2pixel(_size)));
       }
 

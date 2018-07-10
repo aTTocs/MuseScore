@@ -519,7 +519,8 @@ void Measure::layout2()
                         smn = system()->firstMeasure() == this;
                   else {
                         smn = (no() == 0 && score()->styleB(Sid::showMeasureNumberOne)) ||
-                              ( ((no()+1) % score()->styleI(Sid::measureNumberInterval)) == 0 );
+                              ( ((no() + 1) % score()->styleI(Sid::measureNumberInterval)) == (score()->styleB(Sid::showMeasureNumberOne) ? 1 : 0) ) ||
+                              (score()->styleI(Sid::measureNumberInterval) == 1);
                         }
                   }
             }
@@ -800,6 +801,10 @@ void Measure::add(Element* e)
                   for (s = first(); s && s->rtick() < t; s = s->next())
                         ;
                   while (s && s->rtick() == t) {
+                        if (!seg->isChordRestType() && (seg->segmentType() == s->segmentType())) {
+                              qDebug("there is already a <%s> segment", seg->subTypeName());
+                              return;
+                              }
                         if (s->segmentType() > st)
                               break;
                         s = s->next();
@@ -972,13 +977,25 @@ void Measure::spatiumChanged(qreal /*oldValue*/, qreal /*newValue*/)
 
 void Measure::moveTicks(int diff)
       {
+      std::set<Tuplet*> tuplets;
       setTick(tick() + diff);
       for (Segment* segment = last(); segment; segment = segment->prev()) {
             if (segment->segmentType() & (SegmentType::EndBarLine | SegmentType::TimeSigAnnounce))
                   segment->setTick(tick() + ticks());
             else if (segment->isChordRestType())
-                  break;
+                  // Tuplet ticks are stored as absolute ticks, so they must be adjusted.
+                  // But each tuplet must only be adjusted once.
+                  for (Element* e : segment->elist())
+                        if (e) {
+                              ChordRest* cr = toChordRest(e);
+                              Tuplet* tuplet = cr->tuplet();
+                              if (tuplet && tuplets.count(tuplet) == 0) {
+                                    tuplet->setTick(tuplet->tick() + diff);
+                                    tuplets.insert(tuplet);
+                                    }
+                              }
             }
+      tuplets.clear();
       }
 
 //---------------------------------------------------------
@@ -1101,10 +1118,10 @@ void Measure::cmdAddStaves(int sStaff, int eStaff, bool createRest)
       QList<int> sl;
       for (int staffIdx = sStaff; staffIdx < eStaff; ++staffIdx) {
             Staff* s = score()->staff(staffIdx);
-            if (s->linkedStaves()) {
+            if (s->links()) {
                   bool alreadyInList = false;
                   for (int idx : sl) {
-                        if (s->linkedStaves()->staves().contains(score()->staff(idx))) {
+                        if (s->links()->contains(score()->staff(idx))) {
                               alreadyInList = true;
                               break;
                               }
@@ -1467,6 +1484,7 @@ Element* Measure::drop(EditData& data)
                         spacer->setGap(gap);
                         }
                   score()->undoAddElement(spacer);
+                  score()->setLayoutAll();
                   return spacer;
                   }
 
@@ -2088,7 +2106,7 @@ void Measure::read(XmlReader& e, int staffIdx)
                   t->setTrack(e.track());
                   t->read(e);
                   if (t->empty()) {
-                        qDebug("reading empty text: deleted");
+                        qDebug("==reading empty text: deleted");
                         delete t;
                         }
                   else {
@@ -3130,7 +3148,6 @@ void Measure::stretchMeasure(qreal targetWidth)
                               // center full measure rest
                               //
                               e->rxpos() = (x2 - x1 - e->width()) * .5 + x1 - s.x() - e->bbox().x();
-                              e->adjustReadPos();
                               s.createShape(staffIdx);  // DEBUG
                               }
                         }
@@ -3146,10 +3163,7 @@ void Measure::stretchMeasure(qreal targetWidth)
                         e->rypos() = 0.0;
                         e->rxpos() = 0.0;
 //                        e->rxpos() = s.isEndBarLineType() ? s.width() * .5 : 0.0;
-                        e->adjustReadPos();
                         }
-                  else
-                        e->adjustReadPos();
                   }
             }
       }
@@ -3277,8 +3291,10 @@ qreal Measure::createEndBarLines(bool isLastMeasureInSystem)
       Segment* seg = findSegmentR(SegmentType::EndBarLine, ticks());
       Measure* nm  = nextMeasure();
 
+#if 0
 #ifndef NDEBUG
       computeMinWidth();
+#endif
 #endif
       qreal oldWidth = width();
 
@@ -3501,6 +3517,13 @@ void Measure::addSystemHeader(bool isFirstSystem)
                               }
                         if (disable)
                               kSegment->setEnabled(false);
+                        else {
+                              Element* e = kSegment->element(track);
+                              if (e && e->isKeySig()) {
+                                    KeySig* keysig = toKeySig(e);
+                                    keysig->layout();
+                                    }
+                              }
                         }
                   }
 
@@ -3814,6 +3837,7 @@ void Measure::computeMinWidth(Segment* s, qreal x, bool isSystemHeader)
       Segment* fs = s;
       bool first  = system()->firstMeasure() == this;
       const Shape ls(first ? QRectF(0.0, -1000000.0, 0.0, 2000000.0) : QRectF(0.0, 0.0, 0.0, spatium() * 4));
+
       while (s) {
             s->rxpos() = x;
             if (!s->enabled()) {
@@ -3825,7 +3849,7 @@ void Measure::computeMinWidth(Segment* s, qreal x, bool isSystemHeader)
             qreal w;
 
             if (ns) {
-                  if (isSystemHeader && !ns->header()) {        // this is the system header gap
+                  if (isSystemHeader && ns->isChordRestType()) {        // this is the system header gap
                         w = s->minHorizontalDistance(ns, true);
                         isSystemHeader = false;
                         }
@@ -3846,7 +3870,7 @@ void Measure::computeMinWidth(Segment* s, qreal x, bool isSystemHeader)
                         else {
                               if (ps->isChordRestType())
                                     ++n;
-                              ww = ps->minHorizontalDistance(ns, false) - (s->x() - ps->x());
+                              ww = ps->minHorizontalCollidingDistance(ns) - (s->x() - ps->x());
                               }
                         if (ww > w) {
                               // overlap !
@@ -3919,9 +3943,8 @@ void Measure::computeMinWidth()
                   }
             }
 
-      if (s->isChordRestType()) {
+      if (s->isChordRestType())
             x += score()->styleP(hasAccidental(s) ? Sid::barAccidentalDistance : Sid::barNoteDistance);
-            }
       else if (s->isClefType() || s->isHeaderClefType())
             x += score()->styleP(Sid::clefLeftMargin);
       else if (s->isKeySigType())

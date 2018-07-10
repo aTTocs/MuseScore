@@ -74,6 +74,7 @@
 #include "synthesizer/msynthesizer.h"
 #include "svggenerator.h"
 #include "scorePreview.h"
+#include "extension.h"
 
 #ifdef OMR
 #include "omr/omr.h"
@@ -90,6 +91,7 @@
 namespace Ms {
 
 extern void importSoundfont(QString name);
+
 extern bool savePositions(Score*, const QString& name, bool segments);
 extern MasterSynthesizer* synti;
 
@@ -519,7 +521,7 @@ MasterScore* MuseScore::getNewFile()
                         Staff* staff = new Staff(score);
                         staff->setPart(part);
                         staff->init(tstaff);
-                        if (tstaff->linkedStaves() && !part->staves()->isEmpty()) {
+                        if (tstaff->links() && !part->staves()->isEmpty()) {
                               Staff* linkedStaff = part->staves()->back();
                               staff->linkTo(linkedStaff);
                               }
@@ -742,7 +744,13 @@ MasterScore* MuseScore::getNewFile()
             score->setMetaTag("copyright", copyright);
 
       score->rebuildMidiMapping();
-      score->doLayout();
+
+      {
+            extern bool __loadScore;
+            __loadScore = true;
+            score->doLayout();
+            __loadScore = false;
+            }
 
       for (Excerpt* x : excerpts) {
             Score* xs = new Score(static_cast<MasterScore*>(score));
@@ -1739,7 +1747,7 @@ bool MuseScore::exportParts()
       QString skipMessage = tr("Skip");
       foreach (Excerpt* e, thisScore->excerpts())  {
             Score* pScore = e->partScore();
-            QString partfn = fi.absolutePath() + QDir::separator() + fi.completeBaseName() + "-" + createDefaultFileName(pScore->title()) + "." + ext;
+            QString partfn = fi.absolutePath() + "/" + fi.completeBaseName() + "-" + createDefaultFileName(pScore->title()) + "." + ext;
             QFileInfo fip(partfn);
             if (fip.exists() && !overwrite) {
                   if(noToAll)
@@ -1773,7 +1781,7 @@ bool MuseScore::exportParts()
             foreach(Excerpt* e, thisScore->excerpts())  {
                   scores.append(e->partScore());
                   }
-            QString partfn(fi.absolutePath() + QDir::separator() + fi.completeBaseName() + "-" + createDefaultFileName(tr("Score_and_Parts")) + ".pdf");
+            QString partfn(fi.absolutePath() + "/" + fi.completeBaseName() + "-" + createDefaultFileName(tr("Score_and_Parts")) + ".pdf");
             QFileInfo fip(partfn);
             if(fip.exists() && !overwrite) {
                   if (!noToAll) {
@@ -2115,6 +2123,15 @@ void importSoundfont(QString name)
       }
 
 //---------------------------------------------------------
+//   importExtension
+//---------------------------------------------------------
+
+void importExtension(QString name)
+      {
+      mscore->importExtension(name);
+      }
+
+//---------------------------------------------------------
 //   readScore
 ///   Import file \a name
 //---------------------------------------------------------
@@ -2137,6 +2154,10 @@ Score::FileError readScore(MasterScore* score, QString name, bool ignoreVersionE
             importSoundfont(name);
             return Score::FileError::FILE_IGNORE_ERROR;
             }
+      else if (suffix == "muxt") {
+           importExtension(name);
+           return Score::FileError::FILE_IGNORE_ERROR;
+           }
       else {
             // typedef Score::FileError (*ImportFunction)(MasterScore*, const QString&);
             struct ImportDef {
@@ -2201,6 +2222,9 @@ Score::FileError readScore(MasterScore* score, QString name, bool ignoreVersionE
             score->setCreated(true); // force save as for imported files
             }
 
+      {
+      extern bool __loadScore;
+      __loadScore = true;
       score->rebuildMidiMapping();
       score->setSoloMute();
       for (Score* s : score->scoreList()) {
@@ -2211,6 +2235,8 @@ Score::FileError readScore(MasterScore* score, QString name, bool ignoreVersionE
       score->updateChannel();
       score->setSaved(false);
       score->update();
+      __loadScore = false;
+      }
 
       if (!ignoreVersionError && !MScore::noGui)
             if (!score->sanityCheck(QString()))

@@ -47,8 +47,6 @@ void LetRingSegment::layout()
                               rUserYoffset() = -(d + minDistance);
                         }
                   }
-            else
-                  adjustReadPos();
             }
       }
 
@@ -60,6 +58,7 @@ LetRing::LetRing(Score* s)
    : TextLineBase(s)
       {
       initSubStyle(SubStyleId::LET_RING);
+      resetProperty(Pid::LINE_VISIBLE);
       }
 
 //---------------------------------------------------------
@@ -126,6 +125,9 @@ QVariant LetRing::propertyDefault(Pid propertyId) const
 
             case Pid::LINE_STYLE:
                   return score()->styleV(Sid::letRingLineStyle);
+
+            case Pid::LINE_VISIBLE:
+                  return true;
 
             case Pid::BEGIN_TEXT_OFFSET:
                   return score()->styleV(Sid::letRingBeginTextOffset).toPointF();

@@ -346,9 +346,9 @@ bool ChordRest::readProperties(XmlReader& e)
                   else if (atype == "stop") {
                         spanner->setTick2(e.tick());
                         spanner->setTrack2(track());
-                        if (spanner->type() == ElementType::SLUR)
+                        if (spanner->isSlur())
                               spanner->setEndElement(this);
-                        Chord* start = toChord(spanner->startElement());
+                        ChordRest* start = toChordRest(spanner->startElement());
                         if (start)
                               spanner->setTrack(start->track());
                         if (e.pasteMode()) {
@@ -374,8 +374,8 @@ bool ChordRest::readProperties(XmlReader& e)
                   }
             e.readNext();
             }
-      else if (tag == "Lyrics" /*|| tag == "FiguredBass"*/) {
-            Element* element = Element::name2Element(tag, score());
+      else if (tag == "Lyrics") {
+            Element* element = new Lyrics(score());
             element->setTrack(e.track());
             element->read(e);
             add(element);
@@ -386,9 +386,7 @@ bool ChordRest::readProperties(XmlReader& e)
             }
       else if (tag == "offset")
             DurationElement::readProperties(e);
-      else if (DurationElement::readProperties(e))
-            return true;
-      else
+      else if (!DurationElement::readProperties(e))
             return false;
       return true;
       }
@@ -544,9 +542,24 @@ Element* ChordRest::drop(EditData& data)
                         return 0;
                         }
                   // fall through
+
             case ElementType::REHEARSAL_MARK:
                   e->setParent(segment());
                   e->setTrack((track() / VOICES) * VOICES);
+                  {
+                  TextBase* t = toTextBase(e);
+#if 0
+                  SubStyleId st = t->subStyleId();           { SubStyleId::EMPTY };
+                  // for palette items, we want to use current score text style settings
+                  // except where the source element had explicitly overridden these via text properties
+                  // palette text style will be relative to baseStyle, so rebase this to score
+                  if (st >= SubStyleId::DEFAULT && fromPalette)
+                        t->textStyle().restyle(MScore::baseStyle()->textStyle(st), score()->textStyle(st));
+#endif
+                  if (e->isRehearsalMark() && fromPalette)
+                        t->setXmlText(score()->createRehearsalMarkText(toRehearsalMark(e)));
+                  }
+
                   score()->undoAddElement(e);
                   return e;
 
@@ -723,6 +736,9 @@ void ChordRest::add(Element* e)
       e->setParent(this);
       e->setTrack(track());
       switch (e->type()) {
+            case ElementType::ARTICULATION:     // for backward compatibility
+                  qDebug("ChordRest::add: unknown element %s", e->name());
+                  break;
             case ElementType::LYRICS:
                   _lyrics.push_back(toLyrics(e));
                   break;
@@ -1170,6 +1186,8 @@ Shape ChordRest::shape() const
             // for horizontal spacing we only need the lyrics width:
             x1 = qMin(x1, l->bbox().x() - margin + l->pos().x());
             x2 = qMax(x2, x1 + l->bbox().width() + margin);
+            if (l->ticks() == Lyrics::TEMP_MELISMA_TICKS)
+                  x2 += spatium();
             }
       if (x2 > x1)
             shape.add(QRectF(x1, 1.0, x2-x1, 0.0));

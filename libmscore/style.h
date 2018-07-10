@@ -62,6 +62,23 @@ enum class Sid {
       lyricsDashForce,
       lyricsAlignVerseNumber,
       lyricsLineThickness,
+      lyricsMelismaAlign,
+
+      lyricsOddFontFace,
+      lyricsOddFontSize,
+      lyricsOddFontBold,
+      lyricsOddFontItalic,
+      lyricsOddFontUnderline,
+      lyricsOddAlign,
+      lyricsOddOffset,
+
+      lyricsEvenFontFace,
+      lyricsEvenFontSize,
+      lyricsEvenFontBold,
+      lyricsEvenFontItalic,
+      lyricsEvenFontUnderline,
+      lyricsEvenAlign,
+      lyricsEvenOffset,
 
       figuredBassFontFamily,
 //      figuredBassFontSize,
@@ -415,22 +432,6 @@ enum class Sid {
       lyricistOffset,
       lyricistOffsetType,
 
-      lyricsOddFontFace,
-      lyricsOddFontSize,
-      lyricsOddFontBold,
-      lyricsOddFontItalic,
-      lyricsOddFontUnderline,
-      lyricsOddAlign,
-      lyricsOddOffset,
-
-      lyricsEvenFontFace,
-      lyricsEvenFontSize,
-      lyricsEvenFontBold,
-      lyricsEvenFontItalic,
-      lyricsEvenFontUnderline,
-      lyricsEvenAlign,
-      lyricsEvenOffset,
-
       fingeringFontFace,
       fingeringFontSize,
       fingeringFontBold,
@@ -686,12 +687,54 @@ enum class Sid {
       user1FontBold,
       user1FontItalic,
       user1FontUnderline,
+      user1Align,
+      user1Offset,
+      user1OffsetType,
 
       user2FontFace,
       user2FontSize,
       user2FontBold,
       user2FontItalic,
       user2FontUnderline,
+      user2Align,
+      user2Offset,
+      user2OffsetType,
+
+      user3FontFace,
+      user3FontSize,
+      user3FontBold,
+      user3FontItalic,
+      user3FontUnderline,
+      user3Align,
+      user3Offset,
+      user3OffsetType,
+
+      user4FontFace,
+      user4FontSize,
+      user4FontBold,
+      user4FontItalic,
+      user4FontUnderline,
+      user4Align,
+      user4Offset,
+      user4OffsetType,
+
+      user5FontFace,
+      user5FontSize,
+      user5FontBold,
+      user5FontItalic,
+      user5FontUnderline,
+      user5Align,
+      user5Offset,
+      user5OffsetType,
+
+      user6FontFace,
+      user6FontSize,
+      user6FontBold,
+      user6FontItalic,
+      user6FontUnderline,
+      user6Align,
+      user6Offset,
+      user6OffsetType,
 
       letRingFontFace,
       letRingFontSize,
@@ -752,8 +795,7 @@ enum class SubStyleId {
       SUBTITLE,
       COMPOSER,
       POET,
-      LYRIC_ODD,
-      LYRIC_EVEN,
+      LYRIC,
       FINGERING,
       LH_GUITAR_FINGERING,
       RH_GUITAR_FINGERING,
@@ -790,11 +832,18 @@ enum class SubStyleId {
       FIGURED_BASS,
       BEAM,
       BOX,
+      FRET,
+      TREMOLO_BAR,
+      TIMESIG,
+      STEM,
       USER1,
       USER2,
+      USER3,
+      USER4,
+      USER5,
+      USER6,
       SUBSTYLES
       };
-
 
 //---------------------------------------------------------
 //   MStyle
@@ -835,7 +884,9 @@ class MStyle {
 typedef std::vector<StyledProperty> SubStyle;
 
 extern const SubStyle emptyStyle;
+extern const SubStyle defaultStyle;
 extern const SubStyle fingeringStyle;
+extern const SubStyle lyricsStyle;
 
 const SubStyle& subStyle(SubStyleId);
 const SubStyle& subStyle(const char*);

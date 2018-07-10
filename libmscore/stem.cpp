@@ -34,8 +34,8 @@ namespace Ms {
 Stem::Stem(Score* s)
    : Element(s)
       {
-      setFlags(ElementFlag::SELECTABLE);
-      _lineWidth = score()->styleS(Sid::stemWidth).val() * spatium();
+      initSubStyle(SubStyleId::STEM);
+      resetProperty(Pid::USER_LEN);
       }
 
 //---------------------------------------------------------
@@ -75,8 +75,8 @@ void Stem::layout()
       Staff* stf = staff();
       if (chord()) {
             int tick = chord()->tick();
-            StaffType* st = stf->staffType(tick);
-            if (st->isTabStaff() ) {            // TAB staves
+            StaffType* st = stf ? stf->staffType(tick) : nullptr;
+            if (st && st->isTabStaff() ) {            // TAB staves
                   if (st->stemThrough()) {
                         // if stems through staves, gets Y pos. of stem-side note relative to chord other side
                         qreal lineDist = st->lineDistance().val() * spatium();
@@ -105,7 +105,6 @@ void Stem::layout()
       // compute bounding rectangle
       QRectF r(line.p1(), line.p2());
       setbbox(r.normalized().adjusted(-lw5, -lw5, lw5, lw5));
-      adjustReadPos();  // does not work if stem is layouted twice
       }
 
 //---------------------------------------------------------
@@ -202,8 +201,8 @@ void Stem::write(XmlWriter& xml) const
       {
       xml.stag("Stem");
       Element::writeProperties(xml);
-      if (_userLen != 0.0)
-            xml.tag("userLen", _userLen / spatium());
+      writeProperty(xml, Pid::USER_LEN);
+      writeProperty(xml, Pid::LINE_WIDTH);
       xml.etag();
       }
 
@@ -214,14 +213,28 @@ void Stem::write(XmlWriter& xml) const
 void Stem::read(XmlReader& e)
       {
       while (e.readNextStartElement()) {
-            const QStringRef& tag(e.name());
-            if (tag == "userLen")
-                  _userLen = e.readDouble() * spatium();
-            else if (tag == "subtype")        // obsolete
-                  e.skipCurrentElement();
-            else if (!Element::readProperties(e))
+            if (!readProperties(e))
                   e.unknown();
             }
+      }
+
+//---------------------------------------------------------
+//   readProperties
+//---------------------------------------------------------
+
+bool Stem::readProperties(XmlReader& e)
+      {
+      const QStringRef& tag(e.name());
+
+      if (readProperty(tag, e, Pid::USER_LEN))
+            ;
+      else if (readStyledProperty(e, tag))
+            ;
+      else if (Element::readProperties(e))
+            ;
+      else
+            return false;
+      return true;
       }
 
 //---------------------------------------------------------
@@ -310,7 +323,10 @@ Element* Stem::drop(EditData& data)
 QVariant Stem::getProperty(Pid propertyId) const
       {
       switch(propertyId) {
-            case Pid::USER_LEN: return userLen();
+            case Pid::LINE_WIDTH:
+                  return lineWidth();
+            case Pid::USER_LEN:
+                  return userLen();
             default:
                   return Element::getProperty(propertyId);
             }
@@ -323,6 +339,9 @@ QVariant Stem::getProperty(Pid propertyId) const
 bool Stem::setProperty(Pid propertyId, const QVariant& v)
       {
       switch (propertyId) {
+            case Pid::LINE_WIDTH:
+                  setLineWidth(v.toReal());
+                  break;
             case Pid::USER_LEN:
                   setUserLen(v.toDouble());
                   break;
@@ -331,6 +350,22 @@ bool Stem::setProperty(Pid propertyId, const QVariant& v)
             }
       triggerLayout();
       return true;
+      }
+
+//---------------------------------------------------------
+//   propertyDefault
+//---------------------------------------------------------
+
+QVariant Stem::propertyDefault(Pid id) const
+      {
+      switch (id) {
+            case Pid::USER_LEN:
+                  return 0.0;
+//            case Pid::LINE_WIDTH:
+//                  return score()->styleP(Sid::stemWidth);
+            default:
+                  return Element::propertyDefault(id);
+            }
       }
 
 //---------------------------------------------------------

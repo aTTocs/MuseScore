@@ -110,14 +110,14 @@ void Segment::removeElement(int track)
 //---------------------------------------------------------
 
 Segment::Segment(Measure* m)
-   : Element(m->score())
+   : Element(m->score(), ElementFlag::EMPTY | ElementFlag::ENABLED | ElementFlag::NOT_SELECTABLE)
       {
       setParent(m);
       init();
       }
 
 Segment::Segment(Measure* m, SegmentType st, int t)
-   : Element(m->score())
+   : Element(m->score(), ElementFlag::EMPTY | ElementFlag::ENABLED | ElementFlag::NOT_SELECTABLE)
       {
       setParent(m);
       _segmentType = st;
@@ -419,11 +419,12 @@ void Segment::removeStaff(int staff)
 
 void Segment::checkElement(Element* el, int track)
       {
-      if (_elist[track]) {
-            qDebug("Segment::add(%s) there is already a %s at %s(%d) track %d. score %p %s",
+      // generated elements can be overwritten
+      if (_elist[track] && !_elist[track]->generated()) {
+            qDebug("add(%s): there is already a %s at %s(%d) track %d. score %p %s",
                el->name(), _elist[track]->name(),
                qPrintable(score()->sigmap()->pos(tick())), tick(), track, score(), score()->isMaster() ? "Master" : "Part");
-            // abort();
+//            abort();
             }
       }
 
@@ -1883,19 +1884,35 @@ qreal Segment::minLeft() const
       }
 
 //---------------------------------------------------------
-//   minHorizontalDistance
+//   minHorizontalCollidingDistance
+//    calculate the minimum distance to ns avoiding collisions
 //---------------------------------------------------------
 
-qreal Segment::minHorizontalDistance(Segment* ns, bool systemHeaderGap) const
+qreal Segment::minHorizontalCollidingDistance(Segment* ns) const
       {
-      SegmentType st  = segmentType();
-      SegmentType nst = ns ? ns->segmentType() : SegmentType::Invalid;
-
       qreal w = 0.0;
       for (unsigned staffIdx = 0; staffIdx < _shapes.size(); ++staffIdx) {
             qreal d = staffShape(staffIdx).minHorizontalDistance(ns->staffShape(staffIdx));
             w       = qMax(w, d);
             }
+      return w;
+      }
+
+//---------------------------------------------------------
+//   minHorizontalDistance
+//    calculate the minimum layout distance to Segment ns
+//---------------------------------------------------------
+
+qreal Segment::minHorizontalDistance(Segment* ns, bool systemHeaderGap) const
+      {
+      qreal w = 0.0;
+      for (unsigned staffIdx = 0; staffIdx < _shapes.size(); ++staffIdx) {
+            qreal d = staffShape(staffIdx).minHorizontalDistance(ns->staffShape(staffIdx));
+            w       = qMax(w, d);
+            }
+
+      SegmentType st  = segmentType();
+      SegmentType nst = ns ? ns->segmentType() : SegmentType::Invalid;
 
       if (isChordRestType()) {
             if (nst == SegmentType::EndBarLine) {
@@ -1925,17 +1942,19 @@ qreal Segment::minHorizontalDistance(Segment* ns, bool systemHeaderGap) const
                   }
             }
       else if (nst == SegmentType::ChordRest) {
-            qreal d;
+            // <non ChordRest> - <ChordRest>
             if (systemHeaderGap) {
                   if (st == SegmentType::TimeSig)
-                        d = score()->styleP(Sid::systemHeaderTimeSigDistance);
+                        w += score()->styleP(Sid::systemHeaderTimeSigDistance);
                   else
-                        d = score()->styleP(Sid::systemHeaderDistance);
+                        w += score()->styleP(Sid::systemHeaderDistance);
                   }
-            else
-                  d = score()->styleP(Sid::barNoteDistance);
-            qreal dd = minRight() + ns->minLeft() + spatium();
-            w = qMax(d, dd);
+            else {
+//                  qreal d = score()->styleP(Sid::barNoteDistance);
+//                  qreal dd = minRight() + ns->minLeft() + spatium();
+//                  w = qMax(d, dd);
+                  w += score()->styleP(Sid::barNoteDistance);
+                  }
             // d -= ns->minLeft() * .7;      // hack
             // d = qMax(d, ns->minLeft());
             // d = qMax(d, spatium());       // minimum distance is one spatium

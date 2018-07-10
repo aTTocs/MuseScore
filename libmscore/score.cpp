@@ -325,16 +325,6 @@ Score::~Score()
       }
 
 //---------------------------------------------------------
-//   elementAdjustReadPos
-//---------------------------------------------------------
-
-static void elementAdjustReadPos(void*, Element* e)
-      {
-      if (e->isMovable())
-            e->adjustReadPos();
-      }
-
-//---------------------------------------------------------
 //   addMeasure
 //---------------------------------------------------------
 
@@ -503,8 +493,8 @@ Measure* Score::pos2measure(const QPointF& p, int* rst, int* pitch, Segment** se
       System* s = m->system();
       qreal y   = p.y() - s->canvasPos().y();
 
-      int i;
-      for (i = 0; i < nstaves();) {
+      int i = 0;
+      for (; i < nstaves();) {
             SysStaff* stff = s->staff(i);
             if (!stff->show() || !staff(i)->show()) {
                   ++i;
@@ -537,7 +527,8 @@ Measure* Score::pos2measure(const QPointF& p, int* rst, int* pitch, Segment** se
       int strack = i * VOICES;
       if (!staff(i))
             return 0;
-      int etrack = staff(i)->part()->nstaves() * VOICES + strack;
+//      int etrack = staff(i)->part()->nstaves() * VOICES + strack;
+      int etrack = VOICES + strack;
 
       SysStaff* sstaff = m->system()->staff(i);
       SegmentType st = SegmentType::ChordRest;
@@ -1205,6 +1196,10 @@ static void updateStyle(void*, Element* e)
 void Score::styleChanged()
       {
       scanElements(0, updateStyle);
+      if (headerText())
+            headerText()->styleChanged();
+      if (footerText())
+            footerText()->styleChanged();
       setLayoutAll();
       }
 
@@ -1513,7 +1508,6 @@ void Score::removeElement(Element* element)
             default:
                   break;
             }
-      setLayout(element->tick());
       }
 
 //---------------------------------------------------------
@@ -1787,10 +1781,11 @@ void MasterScore::addExcerpt(Excerpt* ex)
       Score* score = ex->partScore();
 
       for (Staff* s : score->staves()) {
-            LinkedStaves* ls = s->linkedStaves();
+            const LinkedElements* ls = s->links();
             if (ls == 0)
                   continue;
-            for (Staff* ps : ls->staves()) {
+            for (auto le : *ls) {
+                  Staff* ps = toStaff(le);
                   if (ps->score() == this) {
                         ex->parts().append(ps->part());
                         break;
@@ -1800,10 +1795,11 @@ void MasterScore::addExcerpt(Excerpt* ex)
       if (ex->tracks().isEmpty()) {                         // SHOULDN'T HAPPEN, protected in the UI
             QMultiMap<int, int> tracks;
             for (Staff* s : score->staves()) {
-                  LinkedStaves* ls = s->linkedStaves();
+                  const LinkedElements* ls = s->links();
                   if (ls == 0)
                         continue;
-                  for (Staff* ps : ls->staves()) {
+                  for (auto le : *ls) {
+                        Staff* ps = toStaff(le);
                         if (ps->primaryStaff()) {
                               for (int i = 0; i < VOICES; i++)
                                     tracks.insert(ps->idx() * VOICES + i % VOICES, s->idx() * VOICES + i % VOICES);
@@ -1854,7 +1850,6 @@ MasterScore* MasterScore::clone()
 
       score->addLayoutFlags(LayoutFlag::FIX_PITCH_VELO);
       score->doLayout();
-      score->scanElements(0, elementAdjustReadPos);  //??
       return score;
       }
 
@@ -2403,6 +2398,7 @@ void Score::cmdRemoveStaff(int staffIdx)
                   sl.append(s);
             }
       for (auto i : sl) {
+printf("remove %p <%s>\n", i, i->name());
             i->undoUnlink();
             undo(new RemoveElement(i));
             }
@@ -2411,16 +2407,18 @@ void Score::cmdRemoveStaff(int staffIdx)
 
       // remove linked staff and measures in linked staves in excerpts
       // unlink staff in the same score
-      if (s->linkedStaves()) {
-            Staff* sameScoreLinkedStaff = nullptr;
-            auto staves = s->linkedStaves()->staves();
-            for (Staff* staff : staves) {
+
+      if (s->links()) {
+            Staff* sameScoreLinkedStaff = 0;
+            auto staves = s->links();
+            for (auto le : *staves) {
+                  Staff* staff = toStaff(le);
                   if (staff == s)
                         continue;
                   Score* lscore = staff->score();
                   if (lscore != this) {
                         lscore->undoRemoveStaff(staff);
-                        s->score()->undo(new UnlinkStaff(s, staff));
+                        s->score()->undo(new Unlink(staff));
                         if (staff->part()->nstaves() == 0) {
                               int pIndex    = lscore->staffIdx(staff->part());
                               lscore->undoRemovePart(staff->part(), pIndex);
@@ -2430,7 +2428,8 @@ void Score::cmdRemoveStaff(int staffIdx)
                        sameScoreLinkedStaff = staff;
                   }
             if (sameScoreLinkedStaff)
-                  s->score()->undo(new UnlinkStaff(sameScoreLinkedStaff, s)); // once should be enough
+//                  s->score()->undo(new Unlink(sameScoreLinkedStaff)); // once should be enough
+                  s->score()->undo(new Unlink(s)); // once should be enough
             }
       }
 
@@ -2684,7 +2683,7 @@ void Score::deselect(Element* el)
       addRefresh(el->abbox());
       _selection.remove(el);
       setSelectionChanged(true);
-      update();
+      _selection.update();
       }
 
 //---------------------------------------------------------
@@ -3530,10 +3529,10 @@ QList<int> Score::uniqueStaves() const
 
       for (int staffIdx = 0; staffIdx < nstaves(); ++staffIdx) {
             Staff* s = staff(staffIdx);
-            if (s->linkedStaves()) {
+            if (s->links()) {
                   bool alreadyInList = false;
                   for (int idx : sl) {
-                        if (s->linkedStaves()->staves().contains(staff(idx))) {
+                        if (s->links()->contains(staff(idx))) {
                               alreadyInList = true;
                               break;
                               }

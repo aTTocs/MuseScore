@@ -31,22 +31,20 @@ namespace Ms {
 struct OttavaDefault {
       SymId id;
       SymId numbersOnlyId;
-      QPointF offset;
       qreal  hookDirection;
       Placement place;
       int shift;
       const char* name;
-      const char* numbersOnlyName;
       };
 
 // order is important, should be the same as OttavaType
 static const OttavaDefault ottavaDefault[] = {
-      { SymId::ottavaAlta,        SymId::ottava,       QPointF(0.0, .7),    1.0, Placement::ABOVE,  12, "8va", "8"   },
-      { SymId::ottavaBassaBa,     SymId::ottava,       QPointF(0.0, -1.0), -1.0, Placement::BELOW, -12, "8vb", "8"   },
-      { SymId::quindicesimaAlta,  SymId::quindicesima, QPointF(0.0, .7),    1.0, Placement::ABOVE,  24, "15ma", "15" },
-      { SymId::quindicesimaBassa, SymId::quindicesima, QPointF(0.0, -1.0), -1.0, Placement::BELOW, -24, "15mb", "15" },
-      { SymId::ventiduesimaAlta,  SymId::ventiduesima, QPointF(0.0, .7),    1.0, Placement::ABOVE,  36, "22ma", "22" },
-      { SymId::ventiduesimaBassa, SymId::ventiduesima, QPointF(0.0, -1.0), -1.0, Placement::BELOW, -36, "22mb", "22" }
+      { SymId::ottavaAlta,        SymId::ottava,        1.0, Placement::ABOVE,  12,  "8va"  },
+      { SymId::ottavaBassaBa,     SymId::ottava,       -1.0, Placement::BELOW, -12,  "8vb"  },
+      { SymId::quindicesimaAlta,  SymId::quindicesima,  1.0, Placement::ABOVE,  24, "15ma"  },
+      { SymId::quindicesimaBassa, SymId::quindicesima, -1.0, Placement::BELOW, -24, "15mb"  },
+      { SymId::ventiduesimaAlta,  SymId::ventiduesima,  1.0, Placement::ABOVE,  36, "22ma"  },
+      { SymId::ventiduesimaBassa, SymId::ventiduesima, -1.0, Placement::BELOW, -36, "22mb"  }
       };
 
 //---------------------------------------------------------
@@ -76,8 +74,6 @@ void OttavaSegment::layout()
                               rUserYoffset() = d + minDistance;
                         }
                   }
-            else
-                  adjustReadPos();
             }
       }
 
@@ -91,7 +87,12 @@ QVariant OttavaSegment::getProperty(Pid id) const
             if (spp->pid == id)
                   return spanner()->getProperty(id);
             }
-      return TextLineBaseSegment::getProperty(id);
+      switch (id) {
+            case Pid::OTTAVA_TYPE:
+                  return spanner()->getProperty(id);
+            default:
+                  return TextLineBaseSegment::getProperty(id);
+            }
       }
 
 //---------------------------------------------------------
@@ -104,7 +105,12 @@ bool OttavaSegment::setProperty(Pid id, const QVariant& v)
             if (spp->pid == id)
                   return spanner()->setProperty(id, v);
             }
-      return TextLineBaseSegment::setProperty(id, v);
+      switch (id) {
+            case Pid::OTTAVA_TYPE:
+                  return spanner()->setProperty(id, v);
+            default:
+                  return TextLineBaseSegment::setProperty(id, v);
+            }
       }
 
 //---------------------------------------------------------
@@ -117,7 +123,12 @@ QVariant OttavaSegment::propertyDefault(Pid id) const
             if (spp->pid == id)
                   return spanner()->propertyDefault(id);
             }
-      return TextLineBaseSegment::propertyDefault(id);
+      switch (id) {
+            case Pid::OTTAVA_TYPE:
+                  return spanner()->propertyDefault(id);
+            default:
+                  return TextLineBaseSegment::propertyDefault(id);
+            }
       }
 
 //---------------------------------------------------------
@@ -125,7 +136,7 @@ QVariant OttavaSegment::propertyDefault(Pid id) const
 //---------------------------------------------------------
 
 Ottava::Ottava(Score* s)
-   : TextLineBase(s, ElementFlag::ON_STAFF)
+   : TextLineBase(s, ElementFlag::ON_STAFF | ElementFlag::MOVABLE)
       {
       _ottavaType = OttavaType::OTTAVA_8VA;
       setBeginTextPlace(PlaceText::LEFT);
@@ -339,11 +350,13 @@ QVariant Ottava::propertyDefault(Pid propertyId) const
                   SymId id = _numbersOnly ? def->numbersOnlyId : def->id;
                   return QString("<sym>%1</sym>").arg(Sym::id2name(id));
                   }
+            case Pid::LINE_VISIBLE:
+                  return true;
+
             default:
-                  for (const StyledProperty& p : subStyle(subStyleId())) {
-                        if (p.pid == propertyId)
-                              return score()->styleV(p.sid);
-                        }
+                  QVariant v = ScoreElement::styledPropertyDefault(propertyId);
+                  if (v.isValid())
+                        return v;
                   return getProperty(propertyId);
             }
       }

@@ -17,11 +17,15 @@
 #include "measure.h"
 #include "staff.h"
 #include "xml.h"
+#include "undo.h"
+#include "musescoreCore.h"
 
 namespace Ms {
 
 #define MIN_TEMPO 5.0/60
 #define MAX_TEMPO 999.0/60
+
+//TODO: textChanged() needs to be called during/after editing
 
 //---------------------------------------------------------
 //   TempoText
@@ -193,14 +197,54 @@ void TempoText::updateRelative()
       }
 
 //---------------------------------------------------------
-//   textChanged
+//   endEdit
 //    text may have changed
 //---------------------------------------------------------
 
-void TempoText::textChanged()
+void TempoText::endEdit(EditData& ed)
       {
-      if (!_followText)
-            return;
+      TextBase::endEdit(ed);
+      if (_followText) {
+            UndoStack* us = score()->undoStack();
+            UndoCommand* ucmd = us->last();
+            if (ucmd) {
+                  us->reopen();
+                  updateTempo();
+                  score()->endCmd();
+                  }
+            else {
+                  score()->startCmd();
+                  updateTempo();
+                  score()->endCmd();
+                  }
+            }
+      }
+
+//---------------------------------------------------------
+//   undoChangeProperty
+//---------------------------------------------------------
+
+void TempoText::undoChangeProperty(Pid id, const QVariant& v, PropertyFlags ps)
+      {
+      if (id == Pid::TEMPO_FOLLOW_TEXT) {
+            ScoreElement::undoChangeProperty(id, v, ps);
+            if (_followText) {
+                  updateTempo();
+                  // update inspector?
+                  MuseScoreCore::mscoreCore->updateInspector();
+                  }
+            }
+      else {
+            ScoreElement::undoChangeProperty(id, v, ps);
+            }
+      }
+
+//---------------------------------------------------------
+//   updateTempo
+//---------------------------------------------------------
+
+void TempoText::updateTempo()
+      {
       // cache regexp, they are costly to create
       static QHash<QString, QRegExp> regexps;
       static QHash<QString, QRegExp> regexps2;
@@ -219,7 +263,7 @@ void TempoText::textChanged()
                   if (sl.size() == 2) {
                         qreal nt = qreal(sl[1].toDouble()) * pa.f;
                         if (nt != _tempo) {
-                              setTempo(qreal(sl[1].toDouble()) * pa.f);
+                              undoChangeProperty(Pid::TEMPO, QVariant(qreal(sl[1].toDouble()) * pa.f), propertyFlags(Pid::TEMPO));
                               _relative = 1.0;
                               _isRelative = false;
                               updateScore();
@@ -267,7 +311,7 @@ void TempoText::setTempo(qreal v)
 
 void TempoText::undoSetTempo(qreal v)
       {
-      undoChangeProperty(Pid::TEMPO, v);
+      undoChangeProperty(Pid::TEMPO, v, propertyFlags(Pid::TEMPO));
       }
 
 //---------------------------------------------------------
@@ -276,7 +320,7 @@ void TempoText::undoSetTempo(qreal v)
 
 void TempoText::undoSetFollowText(bool v)
       {
-      undoChangeProperty(Pid::TEMPO_FOLLOW_TEXT, v);
+      undoChangeProperty(Pid::TEMPO_FOLLOW_TEXT, v, propertyFlags(Pid::TEMPO));
       }
 
 //---------------------------------------------------------
@@ -354,7 +398,7 @@ void TempoText::layout()
 
       // tempo text on first chordrest of measure should align over time sig if present
       //
-      if (!s->rtick()) {
+      if (autoplace() && !s->rtick()) {
             Segment* p = segment()->prev(SegmentType::TimeSig);
             if (p) {
                   rxpos() -= s->x() - p->x();

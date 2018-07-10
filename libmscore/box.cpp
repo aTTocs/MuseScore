@@ -362,7 +362,7 @@ QVariant Box::getProperty(Pid propertyId) const
 bool Box::setProperty(Pid propertyId, const QVariant& v)
       {
       score()->addRefresh(canvasBoundingRect());
-      switch(propertyId) {
+      switch (propertyId) {
             case Pid::BOX_HEIGHT:
                   _boxHeight = v.value<Spatium>();
                   break;
@@ -470,7 +470,6 @@ void HBox::layout()
             bbox().setRect(0.0, 0.0, point(boxWidth()), system()->height());
             }
       Box::layout();
-      adjustReadPos();
       }
 
 //---------------------------------------------------------

@@ -10,8 +10,8 @@
 //  the file LICENCE.GPL
 //=============================================================================
 
-#ifndef __SIMPLETEXT_H__
-#define __SIMPLETEXT_H__
+#ifndef __TEXT_H__
+#define __TEXT_H__
 
 #include "element.h"
 #include "elementlayout.h"
@@ -97,7 +97,6 @@ class TextCursor {
       void setColumn(int val)       { _column = val; }
       void setSelectLine(int val)   { _selectLine = val; }
       void setSelectColumn(int val) { _selectColumn = val; }
-      void setText(TextBase* t)     { _text = t; }
       int columns() const;
       void init();
 
@@ -112,7 +111,6 @@ class TextCursor {
       void updateCursorFormat();
       void setFormat(FormatId, QVariant);
       void changeSelectionFormat(FormatId id, QVariant val);
-      bool deleteChar() const;
       };
 
 //---------------------------------------------------------
@@ -267,6 +265,7 @@ class TextBase : public Element {
       virtual void editCut(EditData&) override;
       virtual void editCopy(EditData&) override;
       virtual void endEdit(EditData&) override;
+      void movePosition(EditData&, QTextCursor::MoveOperation);
 
       bool deleteSelectedText(EditData&);
 
@@ -278,8 +277,6 @@ class TextBase : public Element {
       void writeProperties(XmlWriter& xml, bool writeText) const { writeProperties(xml, writeText, true); }
       void writeProperties(XmlWriter&, bool, bool) const;
       bool readProperties(XmlReader&);
-
-      void spellCheckUnderline(bool) {}
 
       virtual void paste(EditData&);
 
@@ -294,7 +291,6 @@ class TextBase : public Element {
 
       friend class TextBlock;
       friend class TextFragment;
-      virtual void textChanged() {}
       QString convertFromHtml(const QString& ss) const;
       static QString convertToHtml(const QString&, const TextStyle&);
       static QString tagEscape(QString s);
@@ -312,8 +308,8 @@ class TextBase : public Element {
 
       static bool validateText(QString& s);
       bool inHexState() const { return hexState >= 0; }
-      void endHexState();
-      void inputTransition(QInputMethodEvent*);
+      void endHexState(EditData&);
+      void inputTransition(EditData&, QInputMethodEvent*);
 
       QFont font() const;
       QFontMetricsF fontMetrics() const;
@@ -324,7 +320,7 @@ class TextBase : public Element {
 
       void editInsertText(TextCursor*, const QString&);
 
-      TextCursor* cursor(EditData&);
+      TextCursor* cursor(const EditData&);
       const TextBlock& textBlock(int line) const { return _layout[line]; }
       TextBlock& textBlock(int line)             { return _layout[line]; }
       QList<TextBlock>& textBlockList()          { return _layout; }

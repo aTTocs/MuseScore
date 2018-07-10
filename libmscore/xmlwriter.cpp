@@ -175,6 +175,7 @@ void XmlWriter::tag(Pid id, QVariant data, QVariant defaultData)
             case P_TYPE::REAL:
             case P_TYPE::SCALE:
             case P_TYPE::POINT:
+            case P_TYPE::POINT_SP:
             case P_TYPE::SIZE:
             case P_TYPE::COLOR:
             case P_TYPE::DIRECTION:
@@ -272,8 +273,25 @@ void XmlWriter::tag(Pid id, QVariant data, QVariant defaultData)
             case P_TYPE::SUB_STYLE:
                   tag(name, subStyleName(SubStyleId(data.toInt())));
                   break;
-            default:
-                  Q_ASSERT(false);
+            case P_TYPE::FRACTION:
+                  qFatal("unknown: FRACTION");
+            case P_TYPE::POINT_MM:
+                  qFatal("unknown: POINT_MM");
+            case P_TYPE::SIZE_MM:
+                  qFatal("unknown: SIZE_MM");
+            case P_TYPE::TDURATION:
+                  qFatal("unknown: TDURATION");
+            case P_TYPE::BEAM_MODE:
+                  qFatal("unknown: BEAM_MODE");
+            case P_TYPE::TEMPO:
+                  qFatal("unknown: TEMPO");
+            case P_TYPE::GROUPS:
+                  qFatal("unknown: GROUPS");
+            case P_TYPE::INT_LIST:
+                  qFatal("unknown: INT_LIST");
+
+//            default:
+//                  Q_ASSERT(false);
             }
       }
 

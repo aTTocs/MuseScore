@@ -138,7 +138,7 @@ qDebug("ResolveDegreeList: not found in table");
 //---------------------------------------------------------
 
 Harmony::Harmony(Score* s)
-   : TextBase(s)
+   : TextBase(s, ElementFlag::MOVABLE | ElementFlag::ON_STAFF)
       {
       initSubStyle(SubStyleId::HARMONY);
       _rootTpc    = Tpc::TPC_INVALID;
@@ -149,7 +149,6 @@ Harmony::Harmony(Score* s)
       _parsedForm = 0;
       _leftParen  = false;
       _rightParen = false;
-      setFlags(ElementFlag::MOVABLE | ElementFlag::SELECTABLE | ElementFlag::ON_STAFF);
       }
 
 Harmony::Harmony(const Harmony& h)
@@ -220,7 +219,7 @@ void Harmony::write(XmlWriter& xml) const
             QString writeName = _textName;
             if (_parsedForm && _parsedForm->name().startsWith("=") && !writeName.startsWith("="))
                   writeName = "=" + writeName;
-            if (writeName != "")
+            if (!writeName.isEmpty())
                   xml.tag("name", writeName);
 
             if (rBaseTpc != Tpc::TPC_INVALID) {
@@ -228,7 +227,7 @@ void Harmony::write(XmlWriter& xml) const
                   if (_baseCase != NoteCaseType::CAPITAL)
                         xml.tag("baseCase", static_cast<int>(_baseCase));
                   }
-            foreach(const HDegree& hd, _degreeList) {
+            for (const HDegree& hd : _degreeList) {
                   HDegreeType tp = hd.type();
                   if (tp == HDegreeType::ADD || tp == HDegreeType::ALTER || tp == HDegreeType::SUBTRACT) {
                         xml.stag("degree");
@@ -265,31 +264,18 @@ void Harmony::write(XmlWriter& xml) const
 
 void Harmony::read(XmlReader& e)
       {
-      // convert table to tpc values
-      static const int table[] = {
-            14, 9, 16, 11, 18, 13, 8, 15, 10, 17, 12, 19
-            };
-
       while (e.readNextStartElement()) {
             const QStringRef& tag(e.name());
-            if (tag == "base") {
-                  if (score()->mscVersion() >= 106)
-                        setBaseTpc(e.readInt());
-                  else
-                        setBaseTpc(table[e.readInt()-1]);    // obsolete
-                  }
+            if (tag == "base")
+                  setBaseTpc(e.readInt());
             else if (tag == "baseCase")
                   _baseCase = static_cast<NoteCaseType>(e.readInt());
             else if (tag == "extension")
                   setId(e.readInt());
             else if (tag == "name")
                   _textName = e.readElementText();
-            else if (tag == "root") {
-                  if (score()->mscVersion() >= 106)
-                        setRootTpc(e.readInt());
-                  else
-                        setRootTpc(table[e.readInt()-1]);    // obsolete
-                  }
+            else if (tag == "root")
+                  setRootTpc(e.readInt());
             else if (tag == "rootCase")
                   _rootCase = static_cast<NoteCaseType>(e.readInt());
             else if (tag == "degree") {
@@ -618,7 +604,7 @@ const ChordDescription* Harmony::parseHarmony(const QString& ss, int* root, int*
             delete _parsedForm;
             _parsedForm = 0;
             }
-      _textName = "";
+      _textName.clear();
       bool useLiteral = false;
       if (ss.endsWith(' '))
             useLiteral = true;
@@ -643,7 +629,7 @@ const ChordDescription* Harmony::parseHarmony(const QString& ss, int* root, int*
             if (s[0] == '/')
                   idx = 0;
             else {
-                  qDebug("1:parseHarmony failed <%s>", qPrintable(ss));
+                  qDebug("failed <%s>", qPrintable(ss));
                   _userName = s;
                   _textName = s;
                   return 0;
@@ -710,7 +696,6 @@ void Harmony::startEdit(EditData& ed)
       if (!textList.empty())
             setXmlText(harmonyName());
       TextBase::startEdit(ed);
-      layout();
       }
 
 //---------------------------------------------------------
@@ -722,10 +707,14 @@ bool Harmony::edit(EditData& ed)
       if (ed.key == Qt::Key_Return)
             return true; // Harmony only single line
       bool rv = TextBase::edit(ed);
-      QString str = xmlText();
+      setHarmony(plainText());
       int root, base;
+      QString str = xmlText();
       bool badSpell = !str.isEmpty() && !parseHarmony(str, &root, &base, true);
-      spellCheckUnderline(badSpell);
+      setProperty(Pid::COLOR, badSpell ? QColor(Qt::red) : QColor(Qt::black));
+
+      if (badSpell)
+            qDebug("bad spell");
       return rv;
       }
 
@@ -738,7 +727,7 @@ void Harmony::endEdit(EditData& ed)
       TextBase::endEdit(ed);
       layout();
       if (links()) {
-            foreach(ScoreElement* e, *links()) {
+            for (ScoreElement* e : *links()) {
                   if (e == this)
                         continue;
                   Harmony* h = toHarmony(e);
@@ -759,13 +748,13 @@ void Harmony::endEdit(EditData& ed)
                               //score()->undoTransposeHarmony(h, rootTpc, baseTpc);
                               h->setRootTpc(rootTpc);
                               h->setBaseTpc(baseTpc);
-                              // this invokes textChanged(), which handles the rendering
                               h->setXmlText(h->harmonyName());
+                              h->setHarmony(h->plainText());
                               }
                         }
                   }
             }
-      score()->setLayoutAll();
+      triggerLayout();
       }
 
 //---------------------------------------------------------
@@ -789,7 +778,7 @@ void Harmony::setHarmony(const QString& s)
             }
       else {
             // unparseable chord, render as plain text
-            foreach(const TextSegment* s, textList)
+            foreach (const TextSegment* s, textList)
                   delete s;
             textList.clear();
             setRootTpc(Tpc::TPC_INVALID);
@@ -990,21 +979,15 @@ const ChordDescription* Harmony::generateDescription()
       }
 
 //---------------------------------------------------------
-//   textChanged
-//    text may have changed
-//---------------------------------------------------------
-
-void Harmony::textChanged()
-      {
-      setHarmony(plainText());
-      }
-
-//---------------------------------------------------------
 //   layout
 //---------------------------------------------------------
 
 void Harmony::layout()
       {
+      if (isLayoutInvalid())
+            createLayout();
+      if (textBlockList().empty())
+            textBlockList().append(TextBlock());
       calculateBoundingRect();    // for normal symbols this is called in layout: computeMinWidth()
 
       if (!parent()) {
@@ -1064,16 +1047,6 @@ void Harmony::layout()
             }
 
       setPos(xx, yy);
-
-      if (!readPos().isNull()) {
-            // version 114 is measure based
-            // rebase to segment
-            if (score()->mscVersion() == 114) {
-                  setReadPos(readPos() - parent()->pos());
-                  }
-            setUserOff(readPos() - ipos());
-            setReadPos(QPointF());
-            }
 
       if (parent()->isFretDiagram() && parent()->parent()->isSegment()) {
             qDebug("Harmony %s with fret diagram as parent and segment as grandparent", qPrintable(_textName));
@@ -1155,6 +1128,20 @@ void Harmony::draw(QPainter* painter) const
       }
 
 //---------------------------------------------------------
+//   drawEditMode
+//---------------------------------------------------------
+
+void Harmony::drawEditMode(QPainter* p, EditData& ed)
+      {
+      TextBase::drawEditMode(p, ed);
+
+      QPointF pos(pagePos());
+      p->translate(pos);
+      TextBase::draw(p);
+      p->translate(-pos);
+      }
+
+//---------------------------------------------------------
 //   TextSegment
 //---------------------------------------------------------
 
@@ -1224,7 +1211,7 @@ void TextSegment::set(const QString& s, const QFont& f, qreal _x, qreal _y)
 void Harmony::render(const QString& s, qreal& x, qreal& y)
       {
       int fontIdx = 0;
-      if(!s.isEmpty()) {
+      if (!s.isEmpty()) {
             TextSegment* ts = new TextSegment(s, fontList[fontIdx], x, y);
             textList.append(ts);
             x += ts->width();
@@ -1241,9 +1228,11 @@ void Harmony::render(const QList<RenderAction>& renderList, qreal& x, qreal& y, 
       QStack<QPointF> stack;
       int fontIdx    = 0;
       qreal _spatium = spatium();
-      qreal mag      = _spatium / SPATIUM20;
+      qreal mag      = magS();
 
+// qDebug("===");
       for (const RenderAction& a : renderList) {
+// a.print();
             if (a.type == RenderAction::RenderActionType::SET) {
                   TextSegment* ts = new TextSegment(fontList[fontIdx], x, y);
                   ChordSymbol cs = chordList->symbol(a.text);
@@ -1257,8 +1246,8 @@ void Harmony::render(const QList<RenderAction>& renderList, qreal& x, qreal& y, 
                   x += ts->width();
                   }
             else if (a.type == RenderAction::RenderActionType::MOVE) {
-                  x += a.movex * mag;
-                  y += a.movey * mag;
+                  x += a.movex * mag * _spatium * .2;
+                  y += a.movey * mag * _spatium * .2;
                   }
             else if (a.type == RenderAction::RenderActionType::PUSH)
                   stack.push(QPointF(x,y));
@@ -1284,8 +1273,9 @@ void Harmony::render(const QList<RenderAction>& renderList, qreal& x, qreal& y, 
                         ts->font = fontList[cs.fontIdx];
                         ts->setText(cs.value);
                         }
-                  else
+                  else {
                         ts->setText(c);
+                        }
                   textList.append(ts);
                   x += ts->width();
                   }
@@ -1315,7 +1305,7 @@ void Harmony::render(const QList<RenderAction>& renderList, qreal& x, qreal& y, 
                         }
                   }
             else
-                  qDebug("Harmony::render(): unknown render action %d", static_cast<int>(a.type));
+                  qDebug("unknown render action %d", static_cast<int>(a.type));
             }
       }
 
@@ -1446,10 +1436,10 @@ QString Harmony::xmlKind() const
       }
 
 //---------------------------------------------------------
-//   xmlText
+//   musicXmlText
 //---------------------------------------------------------
 
-QString Harmony::xmlText() const
+QString Harmony::musicXmlText() const
       {
       const ChordDescription* cd = descr();
       return cd ? cd->xmlText : QString();
@@ -1621,12 +1611,26 @@ Element* Harmony::drop(EditData& data)
 
 QVariant Harmony::propertyDefault(Pid id) const
       {
+      QVariant v;
       switch (id) {
             case Pid::SUB_STYLE:
-                  return int(SubStyleId::HARMONY);
+                  v = int(SubStyleId::HARMONY);
+                  break;
             default:
-                  return TextBase::propertyDefault(id);
+                  v = styledPropertyDefault(id);
+                  if (!v.isValid()) {
+                        for (const StyledProperty& p : defaultStyle) {
+                              if (p.pid == id) {
+                                    v = score()->styleV(p.sid);
+                                    break;
+                                    }
+                              }
+                        }
+                  if (!v.isValid())
+                        v = Element::propertyDefault(id);
+                  break;
             }
+      return v;
       }
 
 }

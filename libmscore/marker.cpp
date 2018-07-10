@@ -40,20 +40,18 @@ int markerTypeTableSize()
 //---------------------------------------------------------
 
 Marker::Marker(Score* s)
-   : TextBase(s)
+   : TextBase(s, ElementFlag::MOVABLE | ElementFlag::ON_STAFF)
       {
       initSubStyle(SubStyleId::REPEAT_LEFT);
       _markerType = Type::FINE;
-      setFlags(ElementFlag::MOVABLE | ElementFlag::SELECTABLE | ElementFlag::ON_STAFF);
       setLayoutToParentWidth(true);
       }
 
 Marker::Marker(SubStyleId ssid, Score* s)
-   : TextBase(s)
+   : TextBase(s, ElementFlag::MOVABLE | ElementFlag::ON_STAFF)
       {
       initSubStyle(ssid);
       _markerType = Type::FINE;
-      setFlags(ElementFlag::MOVABLE | ElementFlag::SELECTABLE | ElementFlag::ON_STAFF);
       setLayoutToParentWidth(true);
       }
 
@@ -129,32 +127,6 @@ void Marker::styleChanged()
       }
 
 //---------------------------------------------------------
-//   adjustReadPos
-//---------------------------------------------------------
-
-void Marker::adjustReadPos()
-      {
-      if (!readPos().isNull()) {
-
-            QPointF uo;
-/*
-            if (score()->mscVersion() <= 114) {
-                  // rebase from Measure to Segment
-                  uo = userOff();
-                  uo.rx() -= segment()->pos().x();
-                  // 1.2 is always HCENTER aligned
-                  if ((textStyle().align() & Align::HMASK) == 0)    // Align::LEFT
-                        uo.rx() -= bbox().width() * .5;
-                  }
-            else
-*/
-                  uo = readPos() - ipos();
-            setUserOff(uo);
-            setReadPos(QPointF());
-            }
-      }
-
-//---------------------------------------------------------
 //   markerType
 //---------------------------------------------------------
 
@@ -215,9 +187,6 @@ void Marker::layout()
                         }
                   }
             s1.add(s2);
-            }
-      else {
-            adjustReadPos();
             }
       }
 
